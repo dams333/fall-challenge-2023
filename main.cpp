@@ -428,7 +428,13 @@ public:
 					closestCreature = c;
 			}
 			if (closestCreature != nullptr)
+			{
+				if (d.battery > 5)
+					d.setBigLight();
+				else
+					d.setLowLight();
 				d.move(*closestCreature);
+			}
 		}
 	}
 };

@@ -190,6 +190,11 @@ public:
 		this->moveY = y;
 	}
 
+	void move(Creature &c)
+	{
+		move(c.x, c.y);
+	}
+
 	void setBigLight()
 	{
 		this->bigLight = true;
@@ -207,10 +212,12 @@ public:
 
 	void registerActions()
 	{
-		if (moveX != -1 || moveY != -1)
+		if (moveX != -1 && moveY != -1)
 			actionManager.addAction(new MoveAction(moveX, moveY, bigLight));
 		else
+		{
 			actionManager.addAction(new WaitAction(bigLight));
+		}
 	}
 
 	int distanceTo(int x, int y)
@@ -408,7 +415,21 @@ public:
 
 	void routine()
 	{
-		myDrones.front().move(0, 0);
+		for (auto &d : myDrones)
+		{
+			Creature *closestCreature = nullptr;
+			for (auto &c : visibleCreatures)
+			{
+				if (c->scannedByMe)
+					continue;
+				if (closestCreature == nullptr)
+					closestCreature = c;
+				else if (d.distanceTo(*c) < d.distanceTo(*closestCreature))
+					closestCreature = c;
+			}
+			if (closestCreature != nullptr)
+				d.move(*closestCreature);
+		}
 	}
 };
 

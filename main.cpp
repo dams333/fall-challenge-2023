@@ -82,6 +82,7 @@ public:
 	bool savedByMe;
 	bool savedByOpp;
 	bool scannedByMe;
+	bool dead;
 
 	Creature(int id, int color, int type) {
 		this->id = id;
@@ -95,6 +96,7 @@ public:
 		this->savedByMe = false;
 		this->savedByOpp = false;
 		this->scannedByMe = false;
+		this->dead = false;
 	}
 
 	Creature(const Creature &c) { *this = c; }
@@ -112,7 +114,13 @@ public:
 		savedByMe = c.savedByMe;
 		savedByOpp = c.savedByOpp;
 		scannedByMe = c.scannedByMe;
+		dead = c.dead;
 		return *this;
+	}
+
+	bool operator==(const Creature &c)
+	{
+		return id == c.id;
 	}
 
 	void update(int x, int y, int dx, int dy, bool visible)
@@ -190,6 +198,11 @@ public:
 		scans = d.scans;
 		radarBlips = d.radarBlips;
 		return *this;
+	}
+
+	bool operator==(const Drone &d)
+	{
+		return id == d.id;
 	}
 
 	void update(int x, int y, int emergency, int battery)
@@ -470,6 +483,7 @@ public:
 
 		int radar_blip_count;
         cin >> radar_blip_count; cin.ignore();
+		vector<int> aliveCreatures;
         for (int i = 0; i < radar_blip_count; i++) {
             int drone_id;
             int creature_id;
@@ -486,7 +500,14 @@ public:
 			else if (radar == "BR")
 				dir = BOTTOM_RIGHT;
 			d.radarBlips[creature_id] = dir;
+			aliveCreatures.push_back(creature_id);
         }
+
+		for (auto &c : creatures)
+		{
+			if (find(aliveCreatures.begin(), aliveCreatures.end(), c.id) == aliveCreatures.end())
+				c.dead = true;
+		}
 	}
 
 	void play()
@@ -499,16 +520,31 @@ public:
 		actionManager.execute();
 	}
 
+	int countFish()
+	{
+		int count = 0;
+		for (auto &c : creatures)
+		{
+			if (c.type >= 0 && c.dead == false)
+				count++;
+		}
+		return count;
+	
+	}
+
 	void routine()
 	{
 		Creature *old_target = nullptr;
+		cerr << "Scanned: " << myScanCount << " / " << countFish() << endl;
 		for (auto &d : myDrones)
 		{
-			if (myScanCount != 12)
+			if (myScanCount < countFish())
 			{
 				Creature *target = nullptr;
 				for (auto &c : visibleCreatures)
 				{
+					if (c->dead)
+						continue;
 					if (c->scannedByMe)
 						continue;
 					if (old_target == c)
@@ -522,6 +558,8 @@ public:
 				{
 					for (auto &c : creatures)
 					{
+						if (c.dead)
+							continue;
 						if (c.scannedByMe)
 							continue;
 						if (old_target == &c)

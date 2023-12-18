@@ -16,7 +16,7 @@ class ActionManager
 {
 public:
 	vector<AAction *> actions;
-	ActionManager() {};
+	ActionManager(){};
 	void addAction(AAction *action)
 	{
 		actions.push_back(action);
@@ -35,41 +35,37 @@ public:
 
 class Game
 {
-	public:
-		int turn;
-		ActionManager actionManager;
-		Game(): turn(0) { initParse(); }
-		Game(const Game &g) { *this = g; }
-		~Game() {}
-		Game &operator=(const Game &g)
-		{
-			turn = g.turn;
-			return *this;
-		}
+public:
+	int turn;
+	ActionManager actionManager;
+	Game() : turn(0) { initParse(); }
+	Game(const Game &g) { *this = g; }
+	~Game() {}
+	Game &operator=(const Game &g)
+	{
+		turn = g.turn;
+		return *this;
+	}
 
+	void initParse()
+	{
+	}
 
-		void initParse()
-		{
-			
-		}
+	void turnParse()
+	{
+	}
 
-		void turnParse()
-		{
+	void play()
+	{
+		turnParse();
+		turn++;
+		routine();
+		actionManager.execute();
+	}
 
-		}
-
-		void play()
-		{
-			turnParse();
-			turn++;
-			routine();
-			actionManager.execute();
-		}
-
-		void routine()
-		{
-
-		}
+	void routine()
+	{
+	}
 };
 
 int main()

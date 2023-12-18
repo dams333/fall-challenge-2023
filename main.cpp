@@ -441,10 +441,16 @@ public:
 			Creature &c = getCreatureById(creature_id);
 			Drone &d = getDroneById(drone_id);
 			if (d.owner == MY_DRONE)
+			{
 				c.scannedByMe = true;
-			myScans.push_back(&c);
+				if (find(myScans.begin(), myScans.end(), &c) == myScans.end())
+				{
+					myScans.push_back(&c);
+				}
+			}
 			d.registerScan(c);
         }
+		myScanCount = myScans.size();
 
 		for (auto &c : creatures)
 			c.visible = false;
@@ -495,14 +501,17 @@ public:
 
 	void routine()
 	{
+		Creature *old_target = nullptr;
 		for (auto &d : myDrones)
 		{
-			if (d.scanCount != 12)
+			if (myScanCount != 12)
 			{
 				Creature *target = nullptr;
 				for (auto &c : visibleCreatures)
 				{
 					if (c->scannedByMe)
+						continue;
+					if (old_target == c)
 						continue;
 					if (target == nullptr)
 						target = c;
@@ -515,12 +524,15 @@ public:
 					{
 						if (c.scannedByMe)
 							continue;
+						if (old_target == &c)
+							continue;
 						if (target == nullptr)
 							target = &c;
 					}
 				}
 				if (target != nullptr)
 				{
+					old_target = target;
 					if (d.battery > 5)
 						d.setBigLight();
 					else

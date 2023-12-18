@@ -3,6 +3,7 @@
 #include <vector>
 #include <list>
 #include <algorithm>
+#include <map>
 
 using namespace std;
 
@@ -60,6 +61,13 @@ public:
 	}
 };
 
+typedef enum {
+	TOP_LEFT,
+	TOP_RIGHT,
+	BOTTOM_LEFT,
+	BOTTOM_RIGHT,
+} RadarDirection;
+
 class Creature
 {
 public:
@@ -71,8 +79,9 @@ public:
 	int dx;
 	int dy;
 	bool visible;
+	bool savedByMe;
+	bool savedByOpp;
 	bool scannedByMe;
-	bool scannedByOpp;
 
 	Creature(int id, int color, int type) {
 		this->id = id;
@@ -83,8 +92,9 @@ public:
 		this->dx = 0;
 		this->dy = 0;
 		this->visible = false;
+		this->savedByMe = false;
+		this->savedByOpp = false;
 		this->scannedByMe = false;
-		this->scannedByOpp = false;
 	}
 
 	Creature(const Creature &c) { *this = c; }
@@ -99,8 +109,9 @@ public:
 		dx = c.dx;
 		dy = c.dy;
 		visible = c.visible;
+		savedByMe = c.savedByMe;
+		savedByOpp = c.savedByOpp;
 		scannedByMe = c.scannedByMe;
-		scannedByOpp = c.scannedByOpp;
 		return *this;
 	}
 
@@ -144,6 +155,9 @@ public:
 	int moveX;
 	int moveY;
 	bool bigLight;
+	int scanCount;
+	list<Creature *> scans;
+	map<int, RadarDirection> radarBlips;
 
 	Drone(int id, int x, int y, int emergency, int battery, DroneOwner owner,ActionManager &actionManager):actionManager(actionManager) {
 		this->id = id;
@@ -152,9 +166,10 @@ public:
 		this->emergency = emergency;
 		this->battery = battery;
 		this->owner = owner;
-		this->moveX = 0;
-		this->moveY = 0;
+		this->moveX = -1;
+		this->moveY = -1;
 		this->bigLight = false;
+		this->scanCount = 0;
 	}
 
 	Drone(const Drone &d): actionManager(d.actionManager) { *this = d; }
@@ -170,6 +185,10 @@ public:
 		actionManager = d.actionManager;
 		moveX = d.moveX;
 		moveY = d.moveY;
+		bigLight = d.bigLight;
+		scanCount = d.scanCount;
+		scans = d.scans;
+		radarBlips = d.radarBlips;
 		return *this;
 	}
 
@@ -182,6 +201,29 @@ public:
 		this->moveX = -1;
 		this->moveY = -1;
 		this->bigLight = false;
+
+		list<Creature *> toRemove;
+		for (auto &c : scans)
+		{
+			if (c->savedByMe)
+			{
+				toRemove.push_back(c);
+				continue;
+			}
+		}
+		for (auto &c : toRemove)
+		{
+			scans.remove(c);
+		}
+		this->scanCount = scans.size();
+	}
+
+	void registerScan(Creature &c)
+	{
+		if (find(scans.begin(), scans.end(), &c) != scans.end())
+			return;
+		this->scanCount++;
+		this->scans.push_back(&c);
 	}
 
 	void move(int x, int y)
@@ -193,6 +235,25 @@ public:
 	void move(Creature &c)
 	{
 		move(c.x, c.y);
+	}
+
+	void move(RadarDirection dir)
+	{
+		switch (dir)
+		{
+		case TOP_LEFT:
+			move(min(x - 300, 0), min(y - 300, 0));
+			break;
+		case TOP_RIGHT:
+			move(max(x + 300, 10000), min(y - 300, 0));
+			break;
+		case BOTTOM_LEFT:
+			move(min(x - 300, 0), max(y + 300, 10000));
+			break;
+		case BOTTOM_RIGHT:
+			move(max(x + 300, 10000), max(y + 300, 10000));
+			break;
+		}
 	}
 
 	void setBigLight()
@@ -246,16 +307,18 @@ public:
 	list<Creature> creatures;
 	int myScore;
 	int oppScore;
-	int myScanCount;
-	list<Creature *> myScans;
-	int oppScanCount;
-	list<Creature *> oppScans;
+	int mySavedScanCount;
+	list<Creature *> mySavedScans;
+	int oppSavedScanCount;
+	list<Creature *> oppSavedScans;
 	int myDroneCount;
 	list<Drone> myDrones;
 	int oppDroneCount;
 	list<Drone> oppDrones;
 	int visibleCreatureCount;
 	list<Creature *> visibleCreatures;
+	int myScanCount;
+	list<Creature *> myScans;
 
 	ActionManager actionManager;
 	Game() : turn(0), creatureCount(0) { initParse(); }
@@ -268,16 +331,18 @@ public:
 		creatures = g.creatures;
 		myScore = g.myScore;
 		oppScore = g.oppScore;
-		myScanCount = g.myScanCount;
-		myScans = g.myScans;
-		oppScanCount = g.oppScanCount;
-		oppScans = g.oppScans;
+		mySavedScanCount = g.mySavedScanCount;
+		mySavedScans = g.mySavedScans;
+		oppSavedScanCount = g.oppSavedScanCount;
+		oppSavedScans = g.oppSavedScans;
 		myDroneCount = g.myDroneCount;
 		myDrones = g.myDrones;
 		oppDroneCount = g.oppDroneCount;
 		oppDrones = g.oppDrones;
 		visibleCreatureCount = g.visibleCreatureCount;
 		visibleCreatures = g.visibleCreatures;
+		myScanCount = g.myScanCount;
+		myScans = g.myScans;
 		return *this;
 	}
 
@@ -321,22 +386,22 @@ public:
 		cin >> myScore; cin.ignore();
 		cin >> oppScore; cin.ignore();
 		
-		cin >> myScanCount; cin.ignore();
-		for (int i = 0; i < myScanCount; i++) {
+		cin >> mySavedScanCount; cin.ignore();
+		for (int i = 0; i < mySavedScanCount; i++) {
 			int creature_id;
 			cin >> creature_id; cin.ignore();
 			Creature &c = getCreatureById(creature_id);
-			c.scannedByMe = true;
-			myScans.push_back(&c);
+			c.savedByMe = true;
+			mySavedScans.push_back(&c);
 		}
 
-		cin >> oppScanCount; cin.ignore();
-		for (int i = 0; i < oppScanCount; i++) {
+		cin >> oppSavedScanCount; cin.ignore();
+		for (int i = 0; i < oppSavedScanCount; i++) {
 			int creature_id;
 			cin >> creature_id; cin.ignore();
 			Creature &c = getCreatureById(creature_id);
-			c.scannedByOpp = true;
-			oppScans.push_back(&c);
+			c.savedByOpp = true;
+			oppSavedScans.push_back(&c);
 		}
 
 		cin >> myDroneCount; cin.ignore();
@@ -367,13 +432,18 @@ public:
 				getDroneById(drone_id).update(drone_x, drone_y, emergency, battery);
 		}
 
-		//TODO
 		int drone_scan_count;
         cin >> drone_scan_count; cin.ignore();
         for (int i = 0; i < drone_scan_count; i++) {
             int drone_id;
             int creature_id;
             cin >> drone_id >> creature_id; cin.ignore();
+			Creature &c = getCreatureById(creature_id);
+			Drone &d = getDroneById(drone_id);
+			if (d.owner == MY_DRONE)
+				c.scannedByMe = true;
+			myScans.push_back(&c);
+			d.registerScan(c);
         }
 
 		for (auto &c : creatures)
@@ -392,7 +462,6 @@ public:
 			visibleCreatures.push_back(&c);
         }
 
-		//TODO
 		int radar_blip_count;
         cin >> radar_blip_count; cin.ignore();
         for (int i = 0; i < radar_blip_count; i++) {
@@ -400,6 +469,17 @@ public:
             int creature_id;
             string radar;
             cin >> drone_id >> creature_id >> radar; cin.ignore();
+			Drone &d = getDroneById(drone_id);
+			RadarDirection dir;
+			if (radar == "TL")
+				dir = TOP_LEFT;
+			else if (radar == "TR")
+				dir = TOP_RIGHT;
+			else if (radar == "BL")
+				dir = BOTTOM_LEFT;
+			else if (radar == "BR")
+				dir = BOTTOM_RIGHT;
+			d.radarBlips[creature_id] = dir;
         }
 	}
 
@@ -417,23 +497,40 @@ public:
 	{
 		for (auto &d : myDrones)
 		{
-			Creature *closestCreature = nullptr;
-			for (auto &c : visibleCreatures)
+			if (d.scanCount != 12)
 			{
-				if (c->scannedByMe)
-					continue;
-				if (closestCreature == nullptr)
-					closestCreature = c;
-				else if (d.distanceTo(*c) < d.distanceTo(*closestCreature))
-					closestCreature = c;
+				Creature *target = nullptr;
+				for (auto &c : visibleCreatures)
+				{
+					if (c->scannedByMe)
+						continue;
+					if (target == nullptr)
+						target = c;
+					else if (d.distanceTo(*c) < d.distanceTo(*target))
+						target = c;
+				}
+				if (target == nullptr)
+				{
+					for (auto &c : creatures)
+					{
+						if (c.scannedByMe)
+							continue;
+						if (target == nullptr)
+							target = &c;
+					}
+				}
+				if (target != nullptr)
+				{
+					if (d.battery > 5)
+						d.setBigLight();
+					else
+						d.setLowLight();
+					d.move(d.radarBlips[target->id]);
+				}
 			}
-			if (closestCreature != nullptr)
+			else
 			{
-				if (d.battery > 5)
-					d.setBigLight();
-				else
-					d.setLowLight();
-				d.move(*closestCreature);
+				d.move(d.x, 0);
 			}
 		}
 	}

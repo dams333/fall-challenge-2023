@@ -13,6 +13,34 @@ public:
 	virtual ~AAction() = default;
 };
 
+class MoveAction : public AAction
+{
+	int x;
+	int y;
+	bool bigLight;
+public:
+	MoveAction(int x, int y, bool bigLight = false) : x(x), y(y), bigLight(bigLight) {}
+	string extractString()
+	{
+		string s = "MOVE " + to_string(x) + " " + to_string(y);
+		s += bigLight ? " 1" : " 0";
+		return s;
+	}
+};
+
+class WaitAction : public AAction
+{
+	bool bigLight;
+public:
+	WaitAction(bool bigLight = false) : bigLight(bigLight) {}
+	string extractString()
+	{
+		string s = "WAIT";
+		s += bigLight ? " 1" : " 0";
+		return s;
+	}
+};
+
 class ActionManager
 {
 public:
@@ -24,11 +52,9 @@ public:
 	}
 	void execute()
 	{
-		if (actions.size() > 0)
+		for (auto &a : actions)
 		{
-		}
-		else
-		{
+			cout << a->extractString() << endl;
 		}
 		actions.clear();
 	}
@@ -45,6 +71,8 @@ public:
 	int dx;
 	int dy;
 	bool visible;
+	bool scannedByMe;
+	bool scannedByOpp;
 
 	Creature(int id, int color, int type) {
 		this->id = id;
@@ -55,6 +83,8 @@ public:
 		this->dx = 0;
 		this->dy = 0;
 		this->visible = false;
+		this->scannedByMe = false;
+		this->scannedByOpp = false;
 	}
 
 	Creature(const Creature &c) { *this = c; }
@@ -69,6 +99,8 @@ public:
 		dx = c.dx;
 		dy = c.dy;
 		visible = c.visible;
+		scannedByMe = c.scannedByMe;
+		scannedByOpp = c.scannedByOpp;
 		return *this;
 	}
 
@@ -79,6 +111,16 @@ public:
 		this->dx = dx;
 		this->dy = dy;
 		this->visible = visible;
+	}
+
+	int distanceTo(int x, int y)
+	{
+		return abs(this->x - x) + abs(this->y - y);
+	}
+
+	int distanceTo(Creature &c)
+	{
+		return distanceTo(c.x, c.y);
 	}
 
 	~Creature() {}
@@ -98,17 +140,24 @@ public:
 	int emergency;
 	int battery;
 	DroneOwner owner;
+	ActionManager &actionManager;
+	int moveX;
+	int moveY;
+	bool bigLight;
 
-	Drone(int id, int x, int y, int emergency, int battery, DroneOwner owner) {
+	Drone(int id, int x, int y, int emergency, int battery, DroneOwner owner,ActionManager &actionManager):actionManager(actionManager) {
 		this->id = id;
 		this->x = x;
 		this->y = y;
 		this->emergency = emergency;
 		this->battery = battery;
 		this->owner = owner;
+		this->moveX = 0;
+		this->moveY = 0;
+		this->bigLight = false;
 	}
 
-	Drone(const Drone &d) { *this = d; }
+	Drone(const Drone &d): actionManager(d.actionManager) { *this = d; }
 
 	Drone &operator=(const Drone &d)
 	{
@@ -118,6 +167,9 @@ public:
 		emergency = d.emergency;
 		battery = d.battery;
 		owner = d.owner;
+		actionManager = d.actionManager;
+		moveX = d.moveX;
+		moveY = d.moveY;
 		return *this;
 	}
 
@@ -127,6 +179,53 @@ public:
 		this->y = y;
 		this->emergency = emergency;
 		this->battery = battery;
+		this->moveX = -1;
+		this->moveY = -1;
+		this->bigLight = false;
+	}
+
+	void move(int x, int y)
+	{
+		this->moveX = x;
+		this->moveY = y;
+	}
+
+	void setBigLight()
+	{
+		this->bigLight = true;
+	}
+
+	void setLowLight()
+	{
+		this->bigLight = false;
+	}
+
+	void toggleLight()
+	{
+		this->bigLight = !this->bigLight;
+	}
+
+	void registerActions()
+	{
+		if (moveX != -1 || moveY != -1)
+			actionManager.addAction(new MoveAction(moveX, moveY, bigLight));
+		else
+			actionManager.addAction(new WaitAction(bigLight));
+	}
+
+	int distanceTo(int x, int y)
+	{
+		return abs(this->x - x) + abs(this->y - y);
+	}
+
+	int distanceTo(Creature &c)
+	{
+		return distanceTo(c.x, c.y);
+	}
+
+	int distanceTo(Drone &d)
+	{
+		return distanceTo(d.x, d.y);
 	}
 
 	~Drone() {}
@@ -219,14 +318,18 @@ public:
 		for (int i = 0; i < myScanCount; i++) {
 			int creature_id;
 			cin >> creature_id; cin.ignore();
-			myScans.push_back(&getCreatureById(creature_id));
+			Creature &c = getCreatureById(creature_id);
+			c.scannedByMe = true;
+			myScans.push_back(&c);
 		}
 
 		cin >> oppScanCount; cin.ignore();
 		for (int i = 0; i < oppScanCount; i++) {
 			int creature_id;
 			cin >> creature_id; cin.ignore();
-			oppScans.push_back(&getCreatureById(creature_id));
+			Creature &c = getCreatureById(creature_id);
+			c.scannedByOpp = true;
+			oppScans.push_back(&c);
 		}
 
 		cin >> myDroneCount; cin.ignore();
@@ -238,7 +341,7 @@ public:
 			int battery;
 			cin >> drone_id >> drone_x >> drone_y >> emergency >> battery; cin.ignore();
 			if (turn == 0)
-				myDrones.push_back(Drone(drone_id, drone_x, drone_y, emergency, battery, MY_DRONE));
+				myDrones.push_back(Drone(drone_id, drone_x, drone_y, emergency, battery, MY_DRONE, this->actionManager));
 			else
 				getDroneById(drone_id).update(drone_x, drone_y, emergency, battery);
 		}
@@ -252,7 +355,7 @@ public:
 			int battery;
 			cin >> drone_id >> drone_x >> drone_y >> emergency >> battery; cin.ignore();
 			if (turn == 0)
-				oppDrones.push_back(Drone(drone_id, drone_x, drone_y, emergency, battery, OPP_DRONE));
+				oppDrones.push_back(Drone(drone_id, drone_x, drone_y, emergency, battery, OPP_DRONE, this->actionManager));
 			else
 				getDroneById(drone_id).update(drone_x, drone_y, emergency, battery);
 		}
@@ -298,12 +401,14 @@ public:
 		turnParse();
 		turn++;
 		routine();
+		for (auto &d : myDrones)
+			d.registerActions();
 		actionManager.execute();
 	}
 
 	void routine()
 	{
-		cout << "WAIT 1" << endl;
+		myDrones.front().move(0, 0);
 	}
 };
 

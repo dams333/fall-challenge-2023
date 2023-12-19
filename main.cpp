@@ -282,10 +282,10 @@ public:
 			move(max(x + 300, 10000), min(y - 300, 0), msg);
 			break;
 		case BOTTOM_LEFT:
-			move(min(x - 300, 0), max(y + 300, 10000), msg);
+			move(min(x - 300, 0), max(y + 350, 10000), msg);
 			break;
 		case BOTTOM_RIGHT:
-			move(max(x + 300, 10000), max(y + 300, 10000), msg);
+			move(max(x + 300, 10000), max(y + 350, 10000), msg);
 			break;
 		}
 	}
@@ -579,6 +579,18 @@ public:
 	
 	}
 
+	int countAliveFish(int type)
+	{
+		int count = 0;
+		for (auto &c : creatures)
+		{
+			if (c.type == type && c.dead == false)
+				count++;
+		}
+		return count;
+	
+	}
+
 	bool areAllFishScanned(int type)
 	{
 		for (auto &c : creatures)
@@ -659,6 +671,7 @@ public:
 			finished.push_back(false);
 			finished.push_back(false);
 		}
+
 		int i = 0;
 		for (Drone &d : myDrones)
 		{
@@ -668,7 +681,8 @@ public:
 				cake(d);
 				continue;
 			}
-			if (d.y < MID_LIMIT && d.scanCount >= 4 && finished[i])
+			int limit = countAliveFish(0)/2 + countAliveFish(1)/2;
+			if (d.y < MID_LIMIT && d.scanCount >= limit && finished[i] && areAllFishScanned(0))
 			{
 				cake(d);
 				continue;
@@ -756,7 +770,8 @@ public:
 						d.move(d.radarBlips[c.id], "Glados | I | " + to_string(c.id));
 						break;
 					}
-					if (!found && d.scanCount >= 5)
+					int limit = countAliveFish(0)/2 + countAliveFish(1)/2 + 1;
+					if (!found && d.scanCount >= limit)
 						cake(d);
 					else
 					{
@@ -767,11 +782,6 @@ public:
 								continue;
 							if (c.scannedByMe)
 								continue;
-							if (horizontalTarget[i] == LEFT_MIDDLE)
-							{
-								if (c.id % 2 == 0)
-									continue;
-							}
 							found = true;
 							if (c.visible)
 							{

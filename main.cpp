@@ -683,7 +683,7 @@ public:
 					else
 						d.setLowLight();
 				}
-				d.move(horizontalTarget[i], MID_MIDDLE + 250);
+				d.move(horizontalTarget[i], MID_MIDDLE + 250, "Chell " + to_string(i));
 			}
 			else
 			{
@@ -716,7 +716,7 @@ public:
 					dirY /= norm;
 					int targetX = d.x + dirX * 1000;
 					int targetY = d.y + dirY * 1000;
-					d.move(targetX, targetY, "Ahhh " + to_string(m->id));
+					d.move(targetX, targetY, "Companion cube " + to_string(m->id));
 				}
 				else
 				{

@@ -4,6 +4,8 @@
 #include <list>
 #include <algorithm>
 #include <map>
+#include <math.h>
+#include <set>
 
 using namespace std;
 
@@ -19,12 +21,16 @@ class MoveAction : public AAction
 	int x;
 	int y;
 	bool bigLight;
+	string msg;
 public:
 	MoveAction(int x, int y, bool bigLight = false) : x(x), y(y), bigLight(bigLight) {}
+	MoveAction(int x, int y, bool bigLight, string msg) : x(x), y(y), bigLight(bigLight), msg(msg) {}
 	string extractString()
 	{
 		string s = "MOVE " + to_string(x) + " " + to_string(y);
 		s += bigLight ? " 1" : " 0";
+		if (msg.length() > 0)
+			s += " " + msg;
 		return s;
 	}
 };
@@ -32,12 +38,16 @@ public:
 class WaitAction : public AAction
 {
 	bool bigLight;
+	string msg;
 public:
 	WaitAction(bool bigLight = false) : bigLight(bigLight) {}
+	WaitAction(bool bigLight, string msg) : bigLight(bigLight), msg(msg) {}
 	string extractString()
 	{
 		string s = "WAIT";
 		s += bigLight ? " 1" : " 0";
+		if (msg.length() > 0)
+			s += " " + msg;
 		return s;
 	}
 };
@@ -166,6 +176,7 @@ public:
 	int scanCount;
 	list<Creature *> scans;
 	map<int, RadarDirection> radarBlips;
+	string actionMessage;
 
 	Drone(int id, int x, int y, int emergency, int battery, DroneOwner owner,ActionManager &actionManager):actionManager(actionManager) {
 		this->id = id;
@@ -178,6 +189,7 @@ public:
 		this->moveY = -1;
 		this->bigLight = false;
 		this->scanCount = 0;
+		this->actionMessage = "";
 	}
 
 	Drone(const Drone &d): actionManager(d.actionManager) { *this = d; }
@@ -197,6 +209,7 @@ public:
 		scanCount = d.scanCount;
 		scans = d.scans;
 		radarBlips = d.radarBlips;
+		actionMessage = d.actionMessage;
 		return *this;
 	}
 
@@ -214,6 +227,7 @@ public:
 		this->moveX = -1;
 		this->moveY = -1;
 		this->bigLight = false;
+		this->actionMessage = "";
 
 		list<Creature *> toRemove;
 		for (auto &c : scans)
@@ -239,34 +253,42 @@ public:
 		this->scans.push_back(&c);
 	}
 
-	void move(int x, int y)
+	void move(int x, int y, string msg = "")
 	{
+		this->actionMessage = msg;
 		this->moveX = x;
 		this->moveY = y;
 	}
 
-	void move(Creature &c)
+	void move(Creature &c, string msg = "")
 	{
-		move(c.x, c.y);
+		move(c.x, c.y, msg);
 	}
 
-	void move(RadarDirection dir)
+	void move(RadarDirection dir, string msg = "")
 	{
 		switch (dir)
 		{
 		case TOP_LEFT:
-			move(min(x - 300, 0), min(y - 300, 0));
+			move(min(x - 300, 0), min(y - 300, 0), msg);
 			break;
 		case TOP_RIGHT:
-			move(max(x + 300, 10000), min(y - 300, 0));
+			move(max(x + 300, 10000), min(y - 300, 0), msg);
 			break;
 		case BOTTOM_LEFT:
-			move(min(x - 300, 0), max(y + 300, 10000));
+			move(min(x - 300, 0), max(y + 300, 10000), msg);
 			break;
 		case BOTTOM_RIGHT:
-			move(max(x + 300, 10000), max(y + 300, 10000));
+			move(max(x + 300, 10000), max(y + 300, 10000), msg);
 			break;
 		}
+	}
+
+	void wait(string msg = "")
+	{
+		this->actionMessage = msg;
+		this->moveX = -1;
+		this->moveY = -1;
 	}
 
 	void setBigLight()
@@ -287,10 +309,10 @@ public:
 	void registerActions()
 	{
 		if (moveX != -1 && moveY != -1)
-			actionManager.addAction(new MoveAction(moveX, moveY, bigLight));
+			actionManager.addAction(new MoveAction(moveX, moveY, bigLight, actionMessage));
 		else
 		{
-			actionManager.addAction(new WaitAction(bigLight));
+			actionManager.addAction(new WaitAction(bigLight, actionMessage));
 		}
 	}
 
@@ -332,6 +354,7 @@ public:
 	list<Creature *> visibleCreatures;
 	int myScanCount;
 	list<Creature *> myScans;
+	list<Creature *> monsters;
 
 	ActionManager actionManager;
 	Game() : turn(0), creatureCount(0) { initParse(); }
@@ -356,6 +379,7 @@ public:
 		visibleCreatures = g.visibleCreatures;
 		myScanCount = g.myScanCount;
 		myScans = g.myScans;
+		monsters = g.monsters;
 		return *this;
 	}
 
@@ -368,6 +392,8 @@ public:
 			int type;
 			cin >> creature_id >> color >> type; cin.ignore();
 			creatures.push_back(Creature(creature_id, color, type));
+			if (type < 0)
+				monsters.push_back(&creatures.back());
 		}
 	}
 
@@ -520,7 +546,7 @@ public:
 		actionManager.execute();
 	}
 
-	int countFish()
+	int countAliveFish()
 	{
 		int count = 0;
 		for (auto &c : creatures)
@@ -535,24 +561,82 @@ public:
 	void routine()
 	{
 		Creature *old_target = nullptr;
-		cerr << "Scanned: " << myScanCount << " / " << countFish() << endl;
+		cerr << "Scanned: " << myScanCount << " / " << countAliveFish() << endl;
+		vector<int> levels;
+		for (auto &c : creatures)
+		{
+			if (c.dead)
+				continue;
+			if (c.type < 0)
+				continue;
+			levels.push_back(c.type);
+		}
+		sort(levels.begin(), levels.end());
+		int targetLevel = levels.size() > 0 ? *levels.begin() : -1;
 		for (auto &d : myDrones)
 		{
-			if (myScanCount < countFish())
+			if (targetLevel != -1)
 			{
+				bool visible = false;
+				bool cancel = false;
 				Creature *target = nullptr;
 				for (auto &c : visibleCreatures)
 				{
 					if (c->dead)
 						continue;
+					if (c->type < 0)
+					{
+						if (d.distanceTo(*c) < 1000)
+						{
+							float x = d.x - c->x;
+							float y = d.y - c->y;
+							float norm = sqrt(x * x + y * y);
+							x = x / norm * 900;
+							y = y / norm * 300;
+							d.move(d.x + x, d.y + y, "BOUH  " + to_string(c->id));
+							d.setLowLight();
+							cancel = true;
+							break;
+						}
+					}
 					if (c->scannedByMe)
 						continue;
 					if (old_target == c)
 						continue;
+					visible = true;
 					if (target == nullptr)
 						target = c;
 					else if (d.distanceTo(*c) < d.distanceTo(*target))
 						target = c;
+				}
+				if (cancel)
+					continue;
+				if (target == nullptr)
+				{
+					for (auto &c : creatures)
+					{
+						if (c.dead)
+							continue;
+						if (c.type != targetLevel)
+							continue;
+						if (c.scannedByMe)
+							continue;
+						bool danger = false;
+						for (auto &m : monsters)
+						{
+							if (d.radarBlips[m->id] == d.radarBlips[c.id])
+							{
+								danger = true;
+								break;
+							}
+						}
+						if (danger)
+							continue;
+						if (old_target == &c)
+							continue;
+						if (target == nullptr)
+							target = &c;
+					}
 				}
 				if (target == nullptr)
 				{
@@ -560,7 +644,22 @@ public:
 					{
 						if (c.dead)
 							continue;
+						if (c.type < 0)
+							continue;
 						if (c.scannedByMe)
+							continue;
+						bool danger = false;
+						for (auto &m : visibleCreatures)
+						{
+							if (m->type >= 0)
+								continue;
+							if (d.radarBlips[m->id] == d.radarBlips[c.id])
+							{
+								danger = true;
+								break;
+							}
+						}
+						if (danger)
 							continue;
 						if (old_target == &c)
 							continue;
@@ -571,16 +670,25 @@ public:
 				if (target != nullptr)
 				{
 					old_target = target;
-					if (d.battery > 5)
-						d.setBigLight();
-					else
-						d.setLowLight();
-					d.move(d.radarBlips[target->id]);
+					d.move(d.radarBlips[target->id], to_string(targetLevel) + " | " + (visible ? "VI  " : "NV  ") + to_string(target->id));
 				}
 			}
 			else
 			{
-				d.move(d.x, 0);
+				d.setLowLight();
+				int targetX = d.x;
+				for (auto &c : visibleCreatures)
+				{
+					if (c->type < 0)
+					{
+						if (c->y > d.y) {
+							if (abs(c->x - d.x) < 500) {
+								targetX = c->x + (c->x - d.x);
+							}
+						}
+					}
+				}
+				d.move(targetX, 0, "The cake is a lie");
 			}
 		}
 	}

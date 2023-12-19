@@ -22,7 +22,7 @@ using namespace std;
 #define LOW_LIGHT_RADIUS 800
 #define BIG_LIGHT_RADIUS 2000
 #define EMERGENCY_RADIUS 500
-#define DANGER_RADIUS 1200
+#define DANGER_RADIUS 2300
 
 #define SCAN_SAVE 490
 
@@ -245,29 +245,18 @@ public:
 		this->moveY = -1;
 		this->bigLight = false;
 		this->actionMessage = "";
-
-		list<Creature *> toRemove;
-		for (auto &c : scans)
-		{
-			if (c->savedByMe)
-			{
-				toRemove.push_back(c);
-				continue;
-			}
-		}
-		for (auto &c : toRemove)
-		{
-			scans.remove(c);
-		}
-		this->scanCount = scans.size();
+		this->scans.clear();
+		this->scanCount = 0;
 	}
 
 	void registerScan(Creature &c)
 	{
 		if (find(scans.begin(), scans.end(), &c) != scans.end())
 			return;
-		this->scanCount++;
+		if (c.savedByMe)
+			return;
 		this->scans.push_back(&c);
+		this->scanCount = scans.size();
 	}
 
 	void move(int x, int y, string msg = "")
@@ -495,6 +484,7 @@ public:
 
 		int drone_scan_count;
         cin >> drone_scan_count; cin.ignore();
+		myScans.clear();
         for (int i = 0; i < drone_scan_count; i++) {
             int drone_id;
             int creature_id;
@@ -590,6 +580,16 @@ public:
 		return true;
 	}
 
+	bool areAllFishScanned()
+	{
+		for (int i = 0; i < 3; i++)
+		{
+			if (!areAllFishScanned(i))
+				return false;
+		}
+		return true;
+	}	
+
 	vector<int> horizontalTarget;
 	vector<bool> finished;
 	void routine()
@@ -614,7 +614,7 @@ public:
 		int i = 0;
 		for (Drone &d : myDrones)
 		{
-			if (d.y < TOP_LIMIT && d.scanCount > 0)
+			if ((d.y < TOP_LIMIT && d.scanCount > 0) || areAllFishScanned())
 			{
 				d.move(d.x, SCAN_SAVE, "The cake is a lie");
 				continue;
@@ -634,47 +634,56 @@ public:
 			else
 			{
 				finished[i] = true;
-				if (d.y >= MID_LIMIT)
-					d.setBigLight();
-				bool found = false;
-				for (auto &c : creatures)
+
+				bool danger = false;
+				vector<Creature *> dangerCreatures;
+				for (auto &m : monsters)
 				{
-					if (c.dead)
-						continue;
-					if (c.type != 1)
-						continue;
-					if (c.scannedByMe)
-						continue;
-					if (horizontalTarget[i] == LEFT_MIDDLE)
+					if (m->visible && d.distanceTo(m) < DANGER_RADIUS)
 					{
-						if (c.id % 2 == 0)
-							continue;
+						danger = true;
+						dangerCreatures.push_back(m);
 					}
-					found = true;
-					if (c.visible)
-					{
-						if (d.distanceTo(c) < BIG_LIGHT_RADIUS / 2)
-							continue;
-						d.move(c, "V |" + to_string(c.id));
-						break;
-					}
-					d.move(d.radarBlips[c.id], "I | " + to_string(c.id));
-					break;
 				}
-				if (!found && d.scanCount >= 5)
-					d.move(d.x, SCAN_SAVE, "The cake is a lie");
+				if (danger)
+				{
+					cerr << d.id << " in danger by ";
+					for (auto &c : dangerCreatures)
+						cerr << c->id << " ";
+					cerr << endl;
+					d.setLowLight();
+
+					Creature *m = dangerCreatures.front();
+					cerr << m->id << ": " << m->x << ";" << m->y << " | " << m->dx << ";" << m->dy << endl;
+					double dirX = d.x - m->x;
+					double dirY = d.y - m->y;
+					double norm = sqrt(dirX * dirX + dirY * dirY);
+					dirX /= norm;
+					dirY /= norm;
+					int targetX = d.x + dirX * 1000;
+					int targetY = d.y + dirY * 1000;
+					d.move(targetX, targetY, "Ahhh " + to_string(m->id));
+				}
 				else
 				{
-					found = false;
+					d.setBigLight();
+					bool found = false;
 					for (auto &c : creatures)
 					{
 						if (c.dead)
+							continue;
+						if (c.type != 1)
 							continue;
 						if (c.scannedByMe)
 							continue;
 						if (horizontalTarget[i] == LEFT_MIDDLE)
 						{
 							if (c.id % 2 == 0)
+								continue;
+						}
+						for (auto &m : monsters)
+						{
+							if (d.radarBlips[m->id] == d.radarBlips[c.id])
 								continue;
 						}
 						found = true;
@@ -688,8 +697,36 @@ public:
 						d.move(d.radarBlips[c.id], "I | " + to_string(c.id));
 						break;
 					}
-					if (!found)
-						d.move(d.x, SCAN_SAVE, "The cake is a lie");
+					if (!found && d.scanCount >= 5)
+						d.move(d.x, SCAN_SAVE, "The cake is a big lie");
+					else
+					{
+						found = false;
+						for (auto &c : creatures)
+						{
+							if (c.dead)
+								continue;
+							if (c.scannedByMe)
+								continue;
+							if (horizontalTarget[i] == LEFT_MIDDLE)
+							{
+								if (c.id % 2 == 0)
+									continue;
+							}
+							found = true;
+							if (c.visible)
+							{
+								if (d.distanceTo(c) < BIG_LIGHT_RADIUS / 2)
+									continue;
+								d.move(c, "V |" + to_string(c.id));
+								break;
+							}
+							d.move(d.radarBlips[c.id], "I | " + to_string(c.id));
+							break;
+						}
+						if (!found)
+							d.move(d.x, SCAN_SAVE, "The cake is a very big lie");
+					}
 				}
 			}
 

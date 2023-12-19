@@ -436,6 +436,9 @@ public:
 		cin >> myScore; cin.ignore();
 		cin >> oppScore; cin.ignore();
 		
+		for (auto &c : creatures)
+			c.scannedByMe = false;
+
 		cin >> mySavedScanCount; cin.ignore();
 		for (int i = 0; i < mySavedScanCount; i++) {
 			int creature_id;
@@ -485,8 +488,6 @@ public:
 		int drone_scan_count;
         cin >> drone_scan_count; cin.ignore();
 		myScans.clear();
-		for (auto &c : creatures)
-			c.scannedByMe = false;
         for (int i = 0; i < drone_scan_count; i++) {
             int drone_id;
             int creature_id;
@@ -548,6 +549,12 @@ public:
 			if (find(aliveCreatures.begin(), aliveCreatures.end(), c.id) == aliveCreatures.end())
 				c.dead = true;
 		}
+
+		for (auto &c : creatures)
+		{
+			if (c.savedByMe)
+				c.scannedByMe = true;
+		}
 	}
 
 	void play()
@@ -579,7 +586,6 @@ public:
 			if (c.type == type && !c.dead && !c.scannedByMe)
 				return false;
 		}
-		cerr << "All fish of type " << type << " scanned" << endl;
 		return true;
 	}
 
@@ -630,6 +636,12 @@ public:
 	vector<bool> finished;
 	void routine()
 	{
+		for (auto &c: creatures)
+		{
+			if(c.type >=0 && !c.dead)
+				cerr << c.id << ": " << c.scannedByMe << " | " << c.savedByMe << endl;
+		}
+
 		if (turn == 1)
 		{
 			Drone &d1 = myDrones.front();
@@ -653,6 +665,11 @@ public:
 			if ((d.y < TOP_LIMIT && d.scanCount > 0) || areAllFishScanned())
 			{
 				cerr << d.id << " is done" << endl;
+				cake(d);
+				continue;
+			}
+			if (d.y < MID_LIMIT && d.scanCount >= 4 && finished[i])
+			{
 				cake(d);
 				continue;
 			}
@@ -703,6 +720,11 @@ public:
 				}
 				else
 				{
+					if (d.scanCount >= 6)
+					{
+						cake(d);
+						continue;
+					}
 					d.setBigLight();
 					bool found = false;
 					for (auto &c : creatures)
@@ -728,10 +750,10 @@ public:
 						{
 							if (d.distanceTo(c) < BIG_LIGHT_RADIUS / 2)
 								continue;
-							d.move(c, "V |" + to_string(c.id));
+							d.move(c, "Glados | V |" + to_string(c.id));
 							break;
 						}
-						d.move(d.radarBlips[c.id], "I | " + to_string(c.id));
+						d.move(d.radarBlips[c.id], "Glados | I | " + to_string(c.id));
 						break;
 					}
 					if (!found && d.scanCount >= 5)
@@ -755,10 +777,10 @@ public:
 							{
 								if (d.distanceTo(c) < BIG_LIGHT_RADIUS / 2)
 									continue;
-								d.move(c, "V |" + to_string(c.id));
+								d.move(c, "Wheatley | V |" + to_string(c.id));
 								break;
 							}
-							d.move(d.radarBlips[c.id], "I | " + to_string(c.id));
+							d.move(d.radarBlips[c.id], "Wheatley | I | " + to_string(c.id));
 							break;
 						}
 						if (!found)

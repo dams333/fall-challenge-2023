@@ -485,6 +485,8 @@ public:
 		int drone_scan_count;
         cin >> drone_scan_count; cin.ignore();
 		myScans.clear();
+		for (auto &c : creatures)
+			c.scannedByMe = false;
         for (int i = 0; i < drone_scan_count; i++) {
             int drone_id;
             int creature_id;
@@ -577,6 +579,7 @@ public:
 			if (c.type == type && !c.dead && !c.scannedByMe)
 				return false;
 		}
+		cerr << "All fish of type " << type << " scanned" << endl;
 		return true;
 	}
 
@@ -589,6 +592,39 @@ public:
 		}
 		return true;
 	}	
+
+	void cake(Drone &d)
+	{
+		if (areAllFishScanned())
+			d.setBigLight();
+		vector<Creature *> danger;
+		for (auto &m : monsters)
+		{
+			if (!m->visible)
+				continue;
+			if (d.distanceTo(m) > DANGER_RADIUS)
+				continue;
+			if (m->y > d.y)
+				continue;
+			cerr << d.id << " in danger by " << m->id << endl;
+			danger.push_back(m);
+		}
+		if(danger.size() == 0)
+			d.move(d.x, SCAN_SAVE, "The cake is a lie");
+		else
+		{
+			Creature *m = danger.front();
+			cerr << m->id << ": " << m->x << ";" << m->y << " | " << m->dx << ";" << m->dy << endl;
+			double dirX = d.x - m->x;
+			double dirY = d.y - m->y;
+			double norm = sqrt(dirX * dirX + dirY * dirY);
+			dirX /= norm;
+			dirY /= norm;
+			int targetX = d.x + dirX * 1000;
+			int targetY = d.y + dirY * 1000;
+			d.move(targetX, targetY, "The cake is a big lie " + to_string(m->id));
+		}
+	}
 
 	vector<int> horizontalTarget;
 	vector<bool> finished;
@@ -616,7 +652,8 @@ public:
 		{
 			if ((d.y < TOP_LIMIT && d.scanCount > 0) || areAllFishScanned())
 			{
-				d.move(d.x, SCAN_SAVE, "The cake is a lie");
+				cerr << d.id << " is done" << endl;
+				cake(d);
 				continue;
 			}
 
@@ -698,7 +735,7 @@ public:
 						break;
 					}
 					if (!found && d.scanCount >= 5)
-						d.move(d.x, SCAN_SAVE, "The cake is a big lie");
+						cake(d);
 					else
 					{
 						found = false;
@@ -725,7 +762,7 @@ public:
 							break;
 						}
 						if (!found)
-							d.move(d.x, SCAN_SAVE, "The cake is a very big lie");
+							cake(d);
 					}
 				}
 			}

@@ -716,7 +716,7 @@ public:
 					dirY /= norm;
 					int targetX = d.x + dirX * 1000;
 					int targetY = d.y + dirY * 1000;
-					d.move(targetX, targetY, "Companion cube " + to_string(m->id));
+					d.move(targetX, targetY, "Potato " + to_string(m->id));
 				}
 				else
 				{

@@ -611,8 +611,182 @@ public:
 		return true;
 	}	
 
+	void cake(Drone &d)
+	{
+		if (areAllFishScanned())
+			d.setBigLight();
+		vector<Creature *> danger;
+		for (auto &m : monsters)
+		{
+			if (!m->visible)
+				continue;
+			if (d.distanceTo(m) > DANGER_RADIUS)
+				continue;
+			if (m->y > d.y)
+				continue;
+			danger.push_back(m);
+		}
+		if(danger.size() == 0)
+			d.move(d.x, SCAN_SAVE, "The cake is a lie");
+		else
+		{
+			Creature *m = danger.front();
+			double dirX = d.x - m->x;
+			double dirY = d.y - m->y;
+			double norm = sqrt(dirX * dirX + dirY * dirY);
+			dirX /= norm;
+			dirY /= norm;
+			int targetX = d.x + dirX * 1000;
+			int targetY = d.y + dirY * 1000;
+			d.move(targetX, targetY, "The cake is a big lie " + to_string(m->id));
+		}
+	}
+
+	vector<int> horizontalTarget;
+	vector<bool> finished;
 	void routine()
 	{
+		if (turn == 1)
+		{
+			Drone &d1 = myDrones.front();
+			Drone &d2 = myDrones.back();
+			if (d1.x < d2.x)
+			{
+				horizontalTarget.push_back(LEFT_MIDDLE);
+				horizontalTarget.push_back(RIGHT_MIDDLE);
+			}
+			else
+			{
+				horizontalTarget.push_back(RIGHT_MIDDLE);
+				horizontalTarget.push_back(LEFT_MIDDLE);
+			}
+			finished.push_back(false);
+			finished.push_back(false);
+		}
+
+		int i = 0;
+		for (Drone &d : myDrones)
+		{
+			if ((d.y < TOP_LIMIT && d.scanCount > 0) || areAllFishScanned())
+			{
+				cake(d);
+				continue;
+			}
+			int limit = countAliveFish(0)/2 + countAliveFish(1)/2;
+			if (d.y < MID_LIMIT && d.scanCount >= limit && finished[i] && areAllFishScanned(0))
+			{
+				cake(d);
+				continue;
+			}
+
+			if (d.y < MID_LIMIT && !finished[i])
+			{
+				if (d.y > TOP_LIMIT)
+				{
+					if (abs(d.y - TOP_LIMIT) < abs(d.y - TOP_MIDDLE))
+						d.setBigLight();
+					else
+						d.setLowLight();
+				}
+				d.move(horizontalTarget[i], MID_MIDDLE + 250, "Chell " + to_string(i));
+			}
+			else
+			{
+				finished[i] = true;
+
+				bool danger = false;
+				vector<Creature *> dangerCreatures;
+				for (auto &m : monsters)
+				{
+					if (m->visible && d.distanceTo(m) < DANGER_RADIUS)
+					{
+						danger = true;
+						dangerCreatures.push_back(m);
+					}
+				}
+				if (danger)
+				{
+					d.setLowLight();
+
+					Creature *m = dangerCreatures.front();
+					double dirX = d.x - m->x;
+					double dirY = d.y - m->y;
+					double norm = sqrt(dirX * dirX + dirY * dirY);
+					dirX /= norm;
+					dirY /= norm;
+					int targetX = d.x + dirX * 1000;
+					int targetY = d.y + dirY * 1000;
+					d.move(targetX, targetY, "Potato " + to_string(m->id));
+				}
+				else
+				{
+					if (d.scanCount >= 6)
+					{
+						cake(d);
+						continue;
+					}
+					d.setBigLight();
+					bool found = false;
+					for (auto &c : creatures)
+					{
+						if (c.dead)
+							continue;
+						if (c.type != 1)
+							continue;
+						if (c.scannedByMe)
+							continue;
+						if (horizontalTarget[i] == LEFT_MIDDLE)
+						{
+							if (c.id % 2 == 0)
+								continue;
+						}
+						for (auto &m : monsters)
+						{
+							if (d.radarBlips[m->id] == d.radarBlips[c.id])
+								continue;
+						}
+						found = true;
+						if (c.visible)
+						{
+							if (d.distanceTo(c) < BIG_LIGHT_RADIUS / 2)
+								continue;
+							d.move(c, "Glados | V |" + to_string(c.id));
+							break;
+						}
+						d.move(d.radarBlips[c.id], "Glados | I | " + to_string(c.id));
+						break;
+					}
+					int limit = countAliveFish(0)/2 + countAliveFish(1)/2 + 1;
+					if (!found && d.scanCount >= limit)
+						cake(d);
+					else
+					{
+						found = false;
+						for (auto &c : creatures)
+						{
+							if (c.dead)
+								continue;
+							if (c.scannedByMe)
+								continue;
+							found = true;
+							if (c.visible)
+							{
+								if (d.distanceTo(c) < BIG_LIGHT_RADIUS / 2)
+									continue;
+								d.move(c, "Wheatley | V |" + to_string(c.id));
+								break;
+							}
+							d.move(d.radarBlips[c.id], "Wheatley | I | " + to_string(c.id));
+							break;
+						}
+						if (!found)
+							cake(d);
+					}
+				}
+			}
+
+			i++;
+		}
 	}
 };
 

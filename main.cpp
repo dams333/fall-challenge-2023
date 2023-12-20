@@ -624,7 +624,6 @@ public:
 				continue;
 			if (m->y > d.y)
 				continue;
-			cerr << d.id << " in danger by " << m->id << endl;
 			danger.push_back(m);
 		}
 		if(danger.size() == 0)
@@ -632,7 +631,6 @@ public:
 		else
 		{
 			Creature *m = danger.front();
-			cerr << m->id << ": " << m->x << ";" << m->y << " | " << m->dx << ";" << m->dy << endl;
 			double dirX = d.x - m->x;
 			double dirY = d.y - m->y;
 			double norm = sqrt(dirX * dirX + dirY * dirY);
@@ -648,12 +646,6 @@ public:
 	vector<bool> finished;
 	void routine()
 	{
-		for (auto &c: creatures)
-		{
-			if(c.type >=0 && !c.dead)
-				cerr << c.id << ": " << c.scannedByMe << " | " << c.savedByMe << endl;
-		}
-
 		if (turn == 1)
 		{
 			Drone &d1 = myDrones.front();
@@ -677,7 +669,6 @@ public:
 		{
 			if ((d.y < TOP_LIMIT && d.scanCount > 0) || areAllFishScanned())
 			{
-				cerr << d.id << " is done" << endl;
 				cake(d);
 				continue;
 			}
@@ -715,14 +706,9 @@ public:
 				}
 				if (danger)
 				{
-					cerr << d.id << " in danger by ";
-					for (auto &c : dangerCreatures)
-						cerr << c->id << " ";
-					cerr << endl;
 					d.setLowLight();
 
 					Creature *m = dangerCreatures.front();
-					cerr << m->id << ": " << m->x << ";" << m->y << " | " << m->dx << ";" << m->dy << endl;
 					double dirX = d.x - m->x;
 					double dirY = d.y - m->y;
 					double norm = sqrt(dirX * dirX + dirY * dirY);

@@ -760,6 +760,7 @@ public:
 		}
 
 		int i = 0;
+		Creature *oldTarget = nullptr;
 		for (Drone &d : myDrones)
 		{
 			if ((d.y < TOP_LIMIT && d.scanCount > 0) || areAllFishScanned())
@@ -767,13 +768,6 @@ public:
 				cake(d);
 				continue;
 			}
-			int limit = countAliveFish(0) / 2 + countAliveFish(1) / 2;
-			if (d.y < MID_LIMIT && d.scanCount >= limit && finished[i] && areAllFishScanned(0))
-			{
-				cake(d);
-				continue;
-			}
-
 			bool danger = false;
 			for (auto &m : monsters)
 			{
@@ -785,23 +779,15 @@ public:
 
 			if (d.y < MID_LIMIT && !finished[i])
 			{
-				if (d.y > TOP_LIMIT)
-				{
-					if (turn == 5 || turn == 8)
-						d.setBigLight();
-					else
-						d.setLowLight();
-				}
+				if (turn == 5 || turn == 8)
+					d.setBigLight();
+				else
+					d.setLowLight();
 				d.move(horizontalTarget[i], MID_MIDDLE + 250, "Chell " + to_string(i));
 			}
 			else
 			{
 				finished[i] = true;
-				if (d.scanCount >= 6)
-				{
-					cake(d);
-					continue;
-				}
 				if (!danger)
 					d.setBigLight();
 				bool found = false;
@@ -809,11 +795,14 @@ public:
 				{
 					if (c.dead)
 						continue;
+					if (&c == oldTarget)
+						continue;
 					if (c.type != 2)
 						continue;
 					if (c.scannedByMe)
 						continue;
 					found = true;
+					oldTarget = &c;
 					if (c.visible)
 					{
 						if (d.distanceTo(c) < BIG_LIGHT_RADIUS / 2)
@@ -824,19 +813,19 @@ public:
 					d.move(d.radarBlips[c.id], "Glados | I | " + to_string(c.id));
 					break;
 				}
-				int limit = countAliveFish(0) / 2 + countAliveFish(1) / 2 + 1;
-				if (!found && d.scanCount >= limit)
-					cake(d);
-				else
+				if (!found)
 				{
 					found = false;
 					for (auto &c : creatures)
 					{
 						if (c.dead)
 							continue;
+						if (&c == oldTarget)
+							continue;
 						if (c.scannedByMe)
 							continue;
 						found = true;
+						oldTarget = &c;
 						if (c.visible)
 						{
 							if (d.distanceTo(c) < BIG_LIGHT_RADIUS / 2)

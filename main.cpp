@@ -679,7 +679,7 @@ public:
 			double angle = i * M_PI / 180;
 			pair<double, double> rotatedVector = make_pair(originalVector.first * cos(angle) - originalVector.second * sin(angle), originalVector.first * sin(angle) + originalVector.second * cos(angle));
 			pair<int, int> targetVector = make_pair(rotatedVector.first * 600, rotatedVector.second * 600);
-			vector<double> split = {0.25, 0.5, 0.75, 1};
+			vector<double> split = {0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 1};
 			bool danger = false;
 			for (double s : split)
 			{
@@ -688,7 +688,7 @@ public:
 				{
 					pair<int, int> partialMonster = make_pair(m->x + m->dx * s, m->y + m->dy * s);
 					int dist = sqrt((partialTarget.first - partialMonster.first) * (partialTarget.first - partialMonster.first) + (partialTarget.second - partialMonster.second) * (partialTarget.second - partialMonster.second));
-					if (dist < EMERGENCY_RADIUS)
+					if (dist < EMERGENCY_RADIUS + 10)
 					{
 						danger = true;
 						break;
@@ -765,7 +765,6 @@ public:
 		}
 
 		int i = 0;
-		Creature *oldTarget = nullptr;
 		for (Drone &d : myDrones)
 		{
 			if ((d.y < TOP_LIMIT && d.scanCount > 0) || areAllFishScanned())
@@ -774,54 +773,85 @@ public:
 				continue;
 			}
 
-			if (d.y < BOTTOM_LIMIT && !finished[i])
+			bool danger = false;
+			for (auto &m : monsters)
 			{
-				d.move(horizontalTarget[i], BOTTOM_LIMIT + 100, "Glad0s");
-				if (turn == 5 || turn == 7 || turn == 9 || turn == 11)
-					d.setBigLight();
-				else
-					d.setLowLight();
+				if (m->visible && d.distanceTo(m) < DANGER_RADIUS)
+				{
+					danger = true;
+				}
+			}
+
+			if (d.y < MID_LIMIT && !finished[i])
+			{
+				if (d.y > TOP_LIMIT)
+				{
+					if (turn == 5 || turn == 8 || turn == 11)
+						d.setBigLight();
+					else
+						d.setLowLight();
+				}
+				d.move(horizontalTarget[i], MID_MIDDLE + 250, "Chell " + to_string(i));
 			}
 			else
 			{
 				finished[i] = true;
-				d.setBigLight();
-				int target = 2;
-				while (true)
-				{
-					if (missingScan(target) > 1 || (missingScan(target) == 1 && oldTarget != nullptr && oldTarget->type != target))
-						break;
-					target--;
-					if (target < 0)
-						break;
-				}
-				cerr << "For bot " << d.id << " target is " << target << endl;
-				if (target < 0)
+				if (d.scanCount >= 6)
 				{
 					cake(d);
 					continue;
 				}
+				if (!danger)
+					d.setBigLight();
 				bool found = false;
 				for (auto &c : creatures)
 				{
 					if (c.dead)
 						continue;
-					if (c.type != target)
+					if (c.type != 2)
 						continue;
 					if (c.scannedByMe)
 						continue;
-					d.move(d.radarBlips[c.id], "Wheatley");
-					oldTarget = &c;
 					found = true;
+					if (c.visible)
+					{
+						if (d.distanceTo(c) < BIG_LIGHT_RADIUS / 2)
+							continue;
+						d.move(c, "Glados | V |" + to_string(c.id));
+						break;
+					}
+					d.move(d.radarBlips[c.id], "Glados | I | " + to_string(c.id));
 					break;
 				}
-				if (!found)
-				{
+				int limit = countAliveFish(0) / 2 + countAliveFish(1) / 2 + 1;
+				if (!found && d.scanCount >= limit)
 					cake(d);
-					continue;
+				else
+				{
+					found = false;
+					for (auto &c : creatures)
+					{
+						if (c.dead)
+							continue;
+						if (c.scannedByMe)
+							continue;
+						found = true;
+						if (c.visible)
+						{
+							if (d.distanceTo(c) < BIG_LIGHT_RADIUS / 2)
+								continue;
+							d.move(c, "Wheatley | V |" + to_string(c.id));
+							break;
+						}
+						d.move(d.radarBlips[c.id], "Wheatley | I | " + to_string(c.id));
+						break;
+					}
+					if (!found)
+						cake(d);
 				}
 			}
-			protectionMode(d);
+			if (danger)
+				protectionMode(d);
 
 			i++;
 		}

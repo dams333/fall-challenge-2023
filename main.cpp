@@ -296,6 +296,57 @@ public:
 		}
 	}
 
+	void move(RadarDirection dir, Creature *target, string msg = "")
+	{
+		int yModifier = 0;
+
+		if (target->type == 0)
+		{
+			if (this->y > MID_LIMIT)
+			{
+				yModifier = - this->y - TOP_MIDDLE;
+			}
+			else if (this->y < TOP_LIMIT)
+			{
+				yModifier = TOP_MIDDLE - this->y;
+			}
+		}
+		else if (target->type == 1)
+		{
+			if (this->y > BOTTOM_LIMIT)
+			{
+				yModifier = - this->y - MID_MIDDLE;
+			}
+			else if (this->y < MID_LIMIT)
+			{
+				yModifier = MID_MIDDLE - this->y;
+			}
+		}
+		else if (target->type == 2)
+		{
+			if (this->y < BOTTOM_LIMIT)
+			{
+				yModifier = BOTTOM_MIDDLE - this->y;
+			}
+		}
+
+		switch (dir)
+		{
+		case TOP_LEFT:
+			move(min(x - 300, 0), min(y - 300 + yModifier, 0), msg);
+			break;
+		case TOP_RIGHT:
+			move(max(x + 300, 10000), min(y - 300 + yModifier, 0), msg);
+			break;
+		case BOTTOM_LEFT:
+			move(min(x - 300, 0), max(y + 350 + yModifier, 10000), msg);
+			break;
+		case BOTTOM_RIGHT:
+			move(max(x + 300, 10000), max(y + 350 + yModifier, 10000), msg);
+			break;
+		}
+	}
+
 	void wait(string msg = "")
 	{
 		this->actionMessage = msg;
@@ -706,7 +757,15 @@ public:
 		}
 		if (bestPosition.first != -1 && bestPosition.second != -1)
 		{
+			if (d.battery >= 10)
+				d.setBigLight();
+			else
+				d.setLowLight();
 			d.move(bestPosition.first, bestPosition.second, "Ahhh");
+		}
+		else
+		{
+			d.move(originalTargetX, originalTargetY, "My time has come");
 		}
 	}
 
@@ -765,6 +824,7 @@ public:
 		}
 
 		int i = 0;
+		Creature *old_target = nullptr;
 		for (Drone &d : myDrones)
 		{
 			if ((d.y < TOP_LIMIT && d.scanCount > 0) || areAllFishScanned())
@@ -796,11 +856,6 @@ public:
 			else
 			{
 				finished[i] = true;
-				if (d.scanCount >= 6)
-				{
-					cake(d);
-					continue;
-				}
 				if (!danger)
 					d.setBigLight();
 				bool found = false;
@@ -812,6 +867,9 @@ public:
 						continue;
 					if (c.scannedByMe)
 						continue;
+					if (old_target && old_target->id == c.id)
+						continue;
+					old_target = &c;
 					found = true;
 					if (c.visible)
 					{
@@ -823,10 +881,7 @@ public:
 					d.move(d.radarBlips[c.id], "Glados | I | " + to_string(c.id));
 					break;
 				}
-				int limit = countAliveFish(0) / 2 + countAliveFish(1) / 2 + 1;
-				if (!found && d.scanCount >= limit)
-					cake(d);
-				else
+				if (!found)
 				{
 					found = false;
 					for (auto &c : creatures)
@@ -835,6 +890,9 @@ public:
 							continue;
 						if (c.scannedByMe)
 							continue;
+						if (old_target && old_target->id == c.id)
+							continue;
+						old_target = &c;
 						found = true;
 						if (c.visible)
 						{
@@ -847,11 +905,13 @@ public:
 						break;
 					}
 					if (!found)
+					{
 						cake(d);
+						continue;
+					}
 				}
 			}
-			if (danger)
-				protectionMode(d);
+			protectionMode(d);
 
 			i++;
 		}

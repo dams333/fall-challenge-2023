@@ -98,6 +98,12 @@ typedef enum
 	BOTTOM_RIGHT,
 } RadarDirection;
 
+typedef enum
+{
+	LEFT,
+	RIGHT
+}	CreatureSide;
+
 class Creature
 {
 public:
@@ -113,6 +119,7 @@ public:
 	bool savedByOpp;
 	bool scannedByMe;
 	bool dead;
+	CreatureSide side;
 
 	Creature(int id, int color, int type)
 	{
@@ -128,6 +135,7 @@ public:
 		this->savedByOpp = false;
 		this->scannedByMe = false;
 		this->dead = false;
+		this->side = LEFT;
 	}
 
 	Creature(const Creature &c) { *this = c; }
@@ -146,6 +154,7 @@ public:
 		savedByOpp = c.savedByOpp;
 		scannedByMe = c.scannedByMe;
 		dead = c.dead;
+		side = c.side;
 		return *this;
 	}
 
@@ -757,10 +766,6 @@ public:
 		}
 		if (bestPosition.first != -1 && bestPosition.second != -1)
 		{
-			if (d.battery >= 10)
-				d.setBigLight();
-			else
-				d.setLowLight();
 			d.move(bestPosition.first, bestPosition.second, "Ahhh");
 		}
 		else
@@ -801,12 +806,27 @@ public:
 	
 	}
 
+	void detectSides()
+	{
+		Drone *ref = &myDrones.front();
+		if (abs(ref->x - 5000) > abs(myDrones.back().x - 5000))
+			ref = &myDrones.back();
+		for (auto &c : creatures)
+		{
+			if (ref->radarBlips[c.id] == TOP_LEFT || ref->radarBlips[c.id] == BOTTOM_LEFT)
+				c.side = LEFT;
+			else
+				c.side = RIGHT;
+		}
+	}
+
 	vector<int> horizontalTarget;
 	vector<bool> finished;
 	void routine()
 	{
 		if (turn == 1)
 		{
+			detectSides();
 			Drone &d1 = myDrones.front();
 			Drone &d2 = myDrones.back();
 			if (d1.x < d2.x)
@@ -856,8 +876,10 @@ public:
 			else
 			{
 				finished[i] = true;
-				if (!danger)
+				if (turn % 2 != 0)
 					d.setBigLight();
+				else
+					d.setLowLight();
 				bool found = false;
 				for (auto &c : creatures)
 				{
@@ -868,6 +890,10 @@ public:
 					if (c.scannedByMe)
 						continue;
 					if (old_target && old_target->id == c.id)
+						continue;
+					if (c.side == LEFT && horizontalTarget[i] == RIGHT_MIDDLE)
+						continue;
+					if (c.side == RIGHT && horizontalTarget[i] == LEFT_MIDDLE)
 						continue;
 					old_target = &c;
 					found = true;

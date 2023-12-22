@@ -672,12 +672,6 @@ public:
 		if (danger.size() == 0)
 			return;
 
-		cerr << "Drone " << d.id << " is in danger by " << danger.size() << " monsters (original target: " << originalTargetX << ";" << originalTargetY << ")" << endl;
-
-		for (auto &m : danger)
-		{
-			cerr << "Monster " << m->id << " is at " << m->x << ";" << m->y << " with speed " << m->dx << ";" << m->dy << endl;
-		}
 		int minDistance = 1000000;
 		pair<int, int> bestPosition = make_pair(-1, -1);
 		for (int i = 0; i < 360; i++)
@@ -703,7 +697,7 @@ public:
 			}
 			if (danger)
 				continue;
-			int distance = d.distanceTo(d.x + targetVector.first, d.y + targetVector.second);
+			int distance = sqrt((d.x + targetVector.first - originalTargetX) * (d.x + targetVector.first - originalTargetX) + (d.y + targetVector.second - originalTargetY) * (d.y + targetVector.second - originalTargetY));
 			if (distance < minDistance)
 			{
 				minDistance = distance;
@@ -712,7 +706,6 @@ public:
 		}
 		if (bestPosition.first != -1 && bestPosition.second != -1)
 		{
-			cerr << "Drone " << d.id << " is moving to a better position:" << bestPosition.first << ";" << bestPosition.second << endl;
 			d.move(bestPosition.first, bestPosition.second, "Ahhh");
 		}
 	}
@@ -735,6 +728,18 @@ public:
 		d.move(d.x, SCAN_SAVE, "The cake is a lie");
 		if (danger.size() > 0)
 			protectionMode(d);
+	}
+
+	int missingScan(int type)
+	{
+		int count = 0;
+		for (auto &c : creatures)
+		{
+			if (c.type == type && !c.dead && !c.scannedByMe)
+				count++;
+		}
+		return count;
+	
 	}
 
 	vector<int> horizontalTarget;
@@ -768,80 +773,55 @@ public:
 				cake(d);
 				continue;
 			}
-			bool danger = false;
-			for (auto &m : monsters)
-			{
-				if (m->visible && d.distanceTo(m) < DANGER_RADIUS)
-				{
-					danger = true;
-				}
-			}
 
-			if (d.y < MID_LIMIT && !finished[i])
+			if (d.y < BOTTOM_LIMIT && !finished[i])
 			{
-				if (turn == 5 || turn == 8)
+				d.move(horizontalTarget[i], BOTTOM_LIMIT + 100, "Glad0s");
+				if (turn == 5 || turn == 7 || turn == 9 || turn == 11)
 					d.setBigLight();
 				else
 					d.setLowLight();
-				d.move(horizontalTarget[i], MID_MIDDLE + 250, "Chell " + to_string(i));
 			}
 			else
 			{
 				finished[i] = true;
-				if (!danger)
-					d.setBigLight();
+				d.setBigLight();
+				int target = 2;
+				while (true)
+				{
+					if (missingScan(target) > 1 || (missingScan(target) == 1 && oldTarget != nullptr && oldTarget->type != target))
+						break;
+					target--;
+					if (target < 0)
+						break;
+				}
+				cerr << "For bot " << d.id << " target is " << target << endl;
+				if (target < 0)
+				{
+					cake(d);
+					continue;
+				}
 				bool found = false;
 				for (auto &c : creatures)
 				{
 					if (c.dead)
 						continue;
-					if (&c == oldTarget)
-						continue;
-					if (c.type != 2)
+					if (c.type != target)
 						continue;
 					if (c.scannedByMe)
 						continue;
-					found = true;
+					d.move(d.radarBlips[c.id], "Wheatley");
 					oldTarget = &c;
-					if (c.visible)
-					{
-						if (d.distanceTo(c) < BIG_LIGHT_RADIUS / 2)
-							continue;
-						d.move(c, "Glados | V |" + to_string(c.id));
-						break;
-					}
-					d.move(d.radarBlips[c.id], "Glados | I | " + to_string(c.id));
+					found = true;
 					break;
 				}
 				if (!found)
 				{
-					found = false;
-					for (auto &c : creatures)
-					{
-						if (c.dead)
-							continue;
-						if (&c == oldTarget)
-							continue;
-						if (c.scannedByMe)
-							continue;
-						found = true;
-						oldTarget = &c;
-						if (c.visible)
-						{
-							if (d.distanceTo(c) < BIG_LIGHT_RADIUS / 2)
-								continue;
-							d.move(c, "Wheatley | V |" + to_string(c.id));
-							break;
-						}
-						d.move(d.radarBlips[c.id], "Wheatley | I | " + to_string(c.id));
-						break;
-					}
-					if (!found)
-						cake(d);
+					cake(d);
+					continue;
 				}
 			}
-			if (danger)
-				protectionMode(d);
+			protectionMode(d);
 
 			i++;
 		}

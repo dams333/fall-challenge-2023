@@ -39,6 +39,7 @@ class MoveAction : public AAction
 	int y;
 	bool bigLight;
 	string msg;
+
 public:
 	MoveAction(int x, int y, bool bigLight = false) : x(x), y(y), bigLight(bigLight) {}
 	MoveAction(int x, int y, bool bigLight, string msg) : x(x), y(y), bigLight(bigLight), msg(msg) {}
@@ -56,6 +57,7 @@ class WaitAction : public AAction
 {
 	bool bigLight;
 	string msg;
+
 public:
 	WaitAction(bool bigLight = false) : bigLight(bigLight) {}
 	WaitAction(bool bigLight, string msg) : bigLight(bigLight), msg(msg) {}
@@ -88,12 +90,19 @@ public:
 	}
 };
 
-typedef enum {
+typedef enum
+{
 	TOP_LEFT,
 	TOP_RIGHT,
 	BOTTOM_LEFT,
 	BOTTOM_RIGHT,
 } RadarDirection;
+
+typedef enum
+{
+	LEFT,
+	RIGHT
+}	CreatureSide;
 
 class Creature
 {
@@ -110,8 +119,10 @@ public:
 	bool savedByOpp;
 	bool scannedByMe;
 	bool dead;
+	CreatureSide side;
 
-	Creature(int id, int color, int type) {
+	Creature(int id, int color, int type)
+	{
 		this->id = id;
 		this->color = color;
 		this->type = type;
@@ -124,6 +135,7 @@ public:
 		this->savedByOpp = false;
 		this->scannedByMe = false;
 		this->dead = false;
+		this->side = LEFT;
 	}
 
 	Creature(const Creature &c) { *this = c; }
@@ -142,6 +154,7 @@ public:
 		savedByOpp = c.savedByOpp;
 		scannedByMe = c.scannedByMe;
 		dead = c.dead;
+		side = c.side;
 		return *this;
 	}
 
@@ -172,7 +185,8 @@ public:
 	~Creature() {}
 };
 
-typedef enum {
+typedef enum
+{
 	MY_DRONE,
 	OPP_DRONE,
 } DroneOwner;
@@ -195,7 +209,8 @@ public:
 	map<int, RadarDirection> radarBlips;
 	string actionMessage;
 
-	Drone(int id, int x, int y, int emergency, int battery, DroneOwner owner,ActionManager &actionManager):actionManager(actionManager) {
+	Drone(int id, int x, int y, int emergency, int battery, DroneOwner owner, ActionManager &actionManager) : actionManager(actionManager)
+	{
 		this->id = id;
 		this->x = x;
 		this->y = y;
@@ -209,7 +224,7 @@ public:
 		this->actionMessage = "";
 	}
 
-	Drone(const Drone &d): actionManager(d.actionManager) { *this = d; }
+	Drone(const Drone &d) : actionManager(d.actionManager) { *this = d; }
 
 	Drone &operator=(const Drone &d)
 	{
@@ -290,6 +305,57 @@ public:
 		}
 	}
 
+	void move(RadarDirection dir, Creature *target, string msg = "")
+	{
+		int yModifier = 0;
+
+		if (target->type == 0)
+		{
+			if (this->y > MID_LIMIT)
+			{
+				yModifier = - this->y - TOP_MIDDLE;
+			}
+			else if (this->y < TOP_LIMIT)
+			{
+				yModifier = TOP_MIDDLE - this->y;
+			}
+		}
+		else if (target->type == 1)
+		{
+			if (this->y > BOTTOM_LIMIT)
+			{
+				yModifier = - this->y - MID_MIDDLE;
+			}
+			else if (this->y < MID_LIMIT)
+			{
+				yModifier = MID_MIDDLE - this->y;
+			}
+		}
+		else if (target->type == 2)
+		{
+			if (this->y < BOTTOM_LIMIT)
+			{
+				yModifier = BOTTOM_MIDDLE - this->y;
+			}
+		}
+
+		switch (dir)
+		{
+		case TOP_LEFT:
+			move(min(x - 300, 0), min(y - 300 + yModifier, 0), msg);
+			break;
+		case TOP_RIGHT:
+			move(max(x + 300, 10000), min(y - 300 + yModifier, 0), msg);
+			break;
+		case BOTTOM_LEFT:
+			move(min(x - 300, 0), max(y + 350 + yModifier, 10000), msg);
+			break;
+		case BOTTOM_RIGHT:
+			move(max(x + 300, 10000), max(y + 350 + yModifier, 10000), msg);
+			break;
+		}
+	}
+
 	void wait(string msg = "")
 	{
 		this->actionMessage = msg;
@@ -340,6 +406,14 @@ public:
 	int distanceTo(Creature *c)
 	{
 		return distanceTo(c->x, c->y);
+	}
+
+	pair<int, int> getTarget()
+	{
+		if (moveX != -1 && moveY != -1)
+			return make_pair(moveX, moveY);
+		else
+			return make_pair(x, y);
 	}
 
 	~Drone() {}
@@ -396,12 +470,15 @@ public:
 
 	void initParse()
 	{
-		cin >> creatureCount; cin.ignore();
-		for (int i = 0; i < creatureCount; i++) {
+		cin >> creatureCount;
+		cin.ignore();
+		for (int i = 0; i < creatureCount; i++)
+		{
 			int creature_id;
 			int color;
 			int type;
-			cin >> creature_id >> color >> type; cin.ignore();
+			cin >> creature_id >> color >> type;
+			cin.ignore();
 			creatures.push_back(Creature(creature_id, color, type));
 			if (type < 0)
 				monsters.push_back(&creatures.back());
@@ -433,52 +510,66 @@ public:
 
 	void turnParse()
 	{
-		cin >> myScore; cin.ignore();
-		cin >> oppScore; cin.ignore();
-		
+		cin >> myScore;
+		cin.ignore();
+		cin >> oppScore;
+		cin.ignore();
+
 		for (auto &c : creatures)
 			c.scannedByMe = false;
 
-		cin >> mySavedScanCount; cin.ignore();
-		for (int i = 0; i < mySavedScanCount; i++) {
+		cin >> mySavedScanCount;
+		cin.ignore();
+		for (int i = 0; i < mySavedScanCount; i++)
+		{
 			int creature_id;
-			cin >> creature_id; cin.ignore();
+			cin >> creature_id;
+			cin.ignore();
 			Creature &c = getCreatureById(creature_id);
 			c.savedByMe = true;
 			mySavedScans.push_back(&c);
 		}
 
-		cin >> oppSavedScanCount; cin.ignore();
-		for (int i = 0; i < oppSavedScanCount; i++) {
+		cin >> oppSavedScanCount;
+		cin.ignore();
+		for (int i = 0; i < oppSavedScanCount; i++)
+		{
 			int creature_id;
-			cin >> creature_id; cin.ignore();
+			cin >> creature_id;
+			cin.ignore();
 			Creature &c = getCreatureById(creature_id);
 			c.savedByOpp = true;
 			oppSavedScans.push_back(&c);
 		}
 
-		cin >> myDroneCount; cin.ignore();
-		for (int i = 0; i < myDroneCount; i++) {
+		cin >> myDroneCount;
+		cin.ignore();
+		for (int i = 0; i < myDroneCount; i++)
+		{
 			int drone_id;
 			int drone_x;
 			int drone_y;
 			int emergency;
 			int battery;
-			cin >> drone_id >> drone_x >> drone_y >> emergency >> battery; cin.ignore();
+			cin >> drone_id >> drone_x >> drone_y >> emergency >> battery;
+			cin.ignore();
 			if (turn == 0)
 				myDrones.push_back(Drone(drone_id, drone_x, drone_y, emergency, battery, MY_DRONE, this->actionManager));
 			else
 				getDroneById(drone_id).update(drone_x, drone_y, emergency, battery);
 		}
 
-		cin >> oppDroneCount; cin.ignore();
-		for (int i = 0; i < oppDroneCount; i++) {
+		cin >> oppDroneCount;
+		cin.ignore();
+		for (int i = 0; i < oppDroneCount; i++)
+		{
 			int drone_id;
 			int drone_x;
 			int drone_y;
 			int emergency;
 			int battery;
-			cin >> drone_id >> drone_x >> drone_y >> emergency >> battery; cin.ignore();
+			cin >> drone_id >> drone_x >> drone_y >> emergency >> battery;
+			cin.ignore();
 			if (turn == 0)
 				oppDrones.push_back(Drone(drone_id, drone_x, drone_y, emergency, battery, OPP_DRONE, this->actionManager));
 			else
@@ -486,12 +577,15 @@ public:
 		}
 
 		int drone_scan_count;
-        cin >> drone_scan_count; cin.ignore();
+		cin >> drone_scan_count;
+		cin.ignore();
 		myScans.clear();
-        for (int i = 0; i < drone_scan_count; i++) {
-            int drone_id;
-            int creature_id;
-            cin >> drone_id >> creature_id; cin.ignore();
+		for (int i = 0; i < drone_scan_count; i++)
+		{
+			int drone_id;
+			int creature_id;
+			cin >> drone_id >> creature_id;
+			cin.ignore();
 			Creature &c = getCreatureById(creature_id);
 			Drone &d = getDroneById(drone_id);
 			if (d.owner == MY_DRONE)
@@ -503,33 +597,40 @@ public:
 				}
 			}
 			d.registerScan(c);
-        }
+		}
 		myScanCount = myScans.size();
 
 		for (auto &c : creatures)
 			c.visible = false;
-        cin >> visibleCreatureCount; cin.ignore();
+		cin >> visibleCreatureCount;
+		cin.ignore();
 		visibleCreatures.clear();
-        for (int i = 0; i < visibleCreatureCount; i++) {
-            int creature_id;
-            int creature_x;
-            int creature_y;
-            int creature_vx;
-            int creature_vy;
-            cin >> creature_id >> creature_x >> creature_y >> creature_vx >> creature_vy; cin.ignore();
+		for (int i = 0; i < visibleCreatureCount; i++)
+		{
+			int creature_id;
+			int creature_x;
+			int creature_y;
+			int creature_vx;
+			int creature_vy;
+			cin >> creature_id >> creature_x >> creature_y >> creature_vx >> creature_vy;
+			cin.ignore();
+			// cerr << "Creature " << creature_id << " (" << getCreatureById(creature_id).type << ") is visible" << endl;
 			Creature &c = getCreatureById(creature_id);
 			c.update(creature_x, creature_y, creature_vx, creature_vy, true);
 			visibleCreatures.push_back(&c);
-        }
+		}
 
 		int radar_blip_count;
-        cin >> radar_blip_count; cin.ignore();
+		cin >> radar_blip_count;
+		cin.ignore();
 		vector<int> aliveCreatures;
-        for (int i = 0; i < radar_blip_count; i++) {
-            int drone_id;
-            int creature_id;
-            string radar;
-            cin >> drone_id >> creature_id >> radar; cin.ignore();
+		for (int i = 0; i < radar_blip_count; i++)
+		{
+			int drone_id;
+			int creature_id;
+			string radar;
+			cin >> drone_id >> creature_id >> radar;
+			cin.ignore();
 			Drone &d = getDroneById(drone_id);
 			RadarDirection dir;
 			if (radar == "TL")
@@ -542,7 +643,7 @@ public:
 				dir = BOTTOM_RIGHT;
 			d.radarBlips[creature_id] = dir;
 			aliveCreatures.push_back(creature_id);
-        }
+		}
 
 		for (auto &c : creatures)
 		{
@@ -576,7 +677,6 @@ public:
 				count++;
 		}
 		return count;
-	
 	}
 
 	int countAliveFish(int type)
@@ -588,7 +688,6 @@ public:
 				count++;
 		}
 		return count;
-	
 	}
 
 	bool areAllFishScanned(int type)
@@ -609,10 +708,147 @@ public:
 				return false;
 		}
 		return true;
-	}	
+	}
 
+	void protectionMode(Drone &d)
+	{
+		pair<int, int> originalTarget = d.getTarget();
+		int originalTargetX = originalTarget.first;
+		int originalTargetY = originalTarget.second;
+		pair<double, double> originalVector = make_pair(originalTargetX - d.x, originalTargetY - d.y);
+		double norm = sqrt(originalVector.first * originalVector.first + originalVector.second * originalVector.second);
+		originalVector.first /= norm;
+		originalVector.second /= norm;
+
+		vector<Creature *> danger;
+		for (auto &m : monsters)
+		{
+			if (!m->visible)
+				continue;
+			if (d.distanceTo(m) > DANGER_RADIUS)
+				continue;
+			danger.push_back(m);
+		}
+		if (danger.size() == 0)
+			return;
+
+		int minDistance = 1000000;
+		pair<int, int> bestPosition = make_pair(-1, -1);
+		for (int i = 0; i < 360; i++)
+		{
+			double angle = i * M_PI / 180;
+			pair<double, double> rotatedVector = make_pair(originalVector.first * cos(angle) - originalVector.second * sin(angle), originalVector.first * sin(angle) + originalVector.second * cos(angle));
+			pair<int, int> targetVector = make_pair(rotatedVector.first * 600, rotatedVector.second * 600);
+			vector<double> split = {0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 1};
+			bool danger = false;
+			for (double s : split)
+			{
+				pair<int, int> partialTarget = make_pair(d.x + targetVector.first * s, d.y + targetVector.second * s);
+				for (auto &m : monsters)
+				{
+					pair<int, int> partialMonster = make_pair(m->x + m->dx * s, m->y + m->dy * s);
+					int dist = sqrt((partialTarget.first - partialMonster.first) * (partialTarget.first - partialMonster.first) + (partialTarget.second - partialMonster.second) * (partialTarget.second - partialMonster.second));
+					if (dist < EMERGENCY_RADIUS + 10)
+					{
+						danger = true;
+						break;
+					}
+				}
+			}
+			if (danger)
+				continue;
+			int distance = sqrt((d.x + targetVector.first - originalTargetX) * (d.x + targetVector.first - originalTargetX) + (d.y + targetVector.second - originalTargetY) * (d.y + targetVector.second - originalTargetY));
+			if (distance < minDistance)
+			{
+				minDistance = distance;
+				bestPosition = make_pair(d.x + targetVector.first, d.y + targetVector.second);
+			}
+		}
+		if (bestPosition.first != -1 && bestPosition.second != -1)
+		{
+			d.move(bestPosition.first, bestPosition.second, "Ahhh");
+		}
+		else
+		{
+			d.move(originalTargetX, originalTargetY, "My time has come");
+		}
+	}
+
+	void cake(Drone &d)
+	{
+		if (areAllFishScanned())
+			d.setBigLight();
+		vector<Creature *> danger;
+		for (auto &m : monsters)
+		{
+			if (!m->visible)
+				continue;
+			if (d.distanceTo(m) > DANGER_RADIUS)
+				continue;
+			if (m->y > d.y)
+				continue;
+			danger.push_back(m);
+		}
+		d.move(d.x, SCAN_SAVE, "The cake is a lie");
+		if (danger.size() > 0)
+			protectionMode(d);
+	}
+
+	int missingScan(int type)
+	{
+		int count = 0;
+		for (auto &c : creatures)
+		{
+			if (c.type == type && !c.dead && !c.scannedByMe)
+				count++;
+		}
+		return count;
+	
+	}
+
+	void detectSides()
+	{
+		Drone *ref = &myDrones.front();
+		if (abs(ref->x - 5000) > abs(myDrones.back().x - 5000))
+			ref = &myDrones.back();
+		for (auto &c : creatures)
+		{
+			if (ref->radarBlips[c.id] == TOP_LEFT || ref->radarBlips[c.id] == BOTTOM_LEFT)
+				c.side = LEFT;
+			else
+				c.side = RIGHT;
+		}
+	}
+
+	vector<int> horizontalTarget;
+	vector<bool> finished;
 	void routine()
 	{
+		if (turn == 1)
+		{
+			detectSides();
+			Drone &d1 = myDrones.front();
+			Drone &d2 = myDrones.back();
+			if (d1.x < d2.x)
+			{
+				horizontalTarget.push_back(LEFT_MIDDLE);
+				horizontalTarget.push_back(RIGHT_MIDDLE);
+			}
+			else
+			{
+				horizontalTarget.push_back(RIGHT_MIDDLE);
+				horizontalTarget.push_back(LEFT_MIDDLE);
+			}
+			finished.push_back(false);
+			finished.push_back(false);
+		}
+
+		int i = 0;
+		for (Drone &d : myDrones)
+		{
+
+			i++;
+		}
 	}
 };
 

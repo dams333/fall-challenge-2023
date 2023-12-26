@@ -844,8 +844,100 @@ public:
 		}
 
 		int i = 0;
+		Creature *old_target = nullptr;
 		for (Drone &d : myDrones)
 		{
+			if ((d.y < TOP_LIMIT && d.scanCount > 0) || areAllFishScanned())
+			{
+				cake(d);
+				continue;
+			}
+
+			bool danger = false;
+			for (auto &m : monsters)
+			{
+				if (m->visible && d.distanceTo(m) < DANGER_RADIUS)
+				{
+					danger = true;
+				}
+			}
+
+			if (d.y < MID_LIMIT && !finished[i])
+			{
+				if (d.y > TOP_LIMIT)
+				{
+					if (turn == 5 || turn == 8 || turn == 11)
+						d.setBigLight();
+					else
+						d.setLowLight();
+				}
+				d.move(horizontalTarget[i], MID_MIDDLE + 250, "Chell " + to_string(i));
+			}
+			else
+			{
+				finished[i] = true;
+				if (turn % 2 != 0)
+					d.setBigLight();
+				else
+					d.setLowLight();
+				bool found = false;
+				for (auto &c : creatures)
+				{
+					if (c.dead)
+						continue;
+					if (c.type != 2)
+						continue;
+					if (c.scannedByMe)
+						continue;
+					if (old_target && old_target->id == c.id)
+						continue;
+					if (c.side == LEFT && horizontalTarget[i] == RIGHT_MIDDLE)
+						continue;
+					if (c.side == RIGHT && horizontalTarget[i] == LEFT_MIDDLE)
+						continue;
+					old_target = &c;
+					found = true;
+					if (c.visible)
+					{
+						if (d.distanceTo(c) < BIG_LIGHT_RADIUS / 2)
+							continue;
+						d.move(c, "Glados | V |" + to_string(c.id));
+						break;
+					}
+					d.move(d.radarBlips[c.id], "Glados | I | " + to_string(c.id));
+					break;
+				}
+				if (!found)
+				{
+					found = false;
+					for (auto &c : creatures)
+					{
+						if (c.dead)
+							continue;
+						if (c.scannedByMe)
+							continue;
+						if (old_target && old_target->id == c.id)
+							continue;
+						old_target = &c;
+						found = true;
+						if (c.visible)
+						{
+							if (d.distanceTo(c) < BIG_LIGHT_RADIUS / 2)
+								continue;
+							d.move(c, "Wheatley | V |" + to_string(c.id));
+							break;
+						}
+						d.move(d.radarBlips[c.id], "Wheatley | I | " + to_string(c.id));
+						break;
+					}
+					if (!found)
+					{
+						cake(d);
+						continue;
+					}
+				}
+			}
+			protectionMode(d);
 
 			i++;
 		}

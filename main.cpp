@@ -9,8 +9,10 @@
 
 using namespace std;
 
-#define LEFT_MIDDLE 2000
-#define RIGHT_MIDDLE 8000
+#define LEFT_MIDDLE 3000
+#define RIGHT_MIDDLE 7000
+
+#define PHASE1_DEEP 7000
 
 #define TOP_LIMIT 2500
 #define TOP_MIDDLE 3750
@@ -766,7 +768,7 @@ public:
 		}
 		if (bestPosition.first != -1 && bestPosition.second != -1)
 		{
-			d.move(bestPosition.first, bestPosition.second, "Ahhh");
+			d.move(bestPosition.first, bestPosition.second, "Ahhh " + d.actionMessage);
 		}
 		else
 		{
@@ -778,20 +780,9 @@ public:
 	{
 		if (areAllFishScanned())
 			d.setBigLight();
-		vector<Creature *> danger;
-		for (auto &m : monsters)
-		{
-			if (!m->visible)
-				continue;
-			if (d.distanceTo(m) > DANGER_RADIUS)
-				continue;
-			if (m->y > d.y)
-				continue;
-			danger.push_back(m);
-		}
+		else
+			d.setLowLight();
 		d.move(d.x, SCAN_SAVE, "The cake is a lie");
-		if (danger.size() > 0)
-			protectionMode(d);
 	}
 
 	int missingScan(int type)
@@ -821,7 +812,7 @@ public:
 	}
 
 	vector<int> horizontalTarget;
-	vector<bool> finished;
+	vector<int> phase;
 	void routine()
 	{
 		if (turn == 1)
@@ -839,14 +830,75 @@ public:
 				horizontalTarget.push_back(RIGHT_MIDDLE);
 				horizontalTarget.push_back(LEFT_MIDDLE);
 			}
-			finished.push_back(false);
-			finished.push_back(false);
+			phase.push_back(0);
+			phase.push_back(0);
 		}
 
 		int i = 0;
 		for (Drone &d : myDrones)
 		{
-
+			if (phase[i] == 0)
+			{
+				pair<int, int> target = make_pair(horizontalTarget[i], PHASE1_DEEP);
+				d.move(target.first, target.second, "Glad0s " + to_string(i));
+				if (d.y > TOP_LIMIT && (turn % 2 == 0 || turn > 10))
+					d.setBigLight();
+				else
+					d.setLowLight();
+				if (d.y > PHASE1_DEEP - 100)
+					phase[i] = 1;
+			}
+			if (phase[i] == 1)
+			{
+				cake(d);
+				if (d.y < SCAN_SAVE + 5)
+					phase[i] = 2;
+			}
+			if (phase[i] == 2)
+			{
+				int targetLevel = 2;
+				Creature *target = nullptr;
+				while (target == nullptr)
+				{
+					for (auto &c : creatures)
+					{
+						if (c.dead)
+							continue;
+						if (c.type < 0)
+							continue;
+						if (c.scannedByMe)
+							continue;
+						if (c.type != targetLevel)
+							continue;
+						if (c.side == LEFT && horizontalTarget[i] == RIGHT_MIDDLE)
+							continue;
+						if (c.side == RIGHT && horizontalTarget[i] == LEFT_MIDDLE)
+							continue;
+						target = &c;
+					}
+					if (target == nullptr)
+						targetLevel--;
+					if (targetLevel < 0)
+						break;
+				}
+				if (target == nullptr)
+					cake(d);
+				else
+				{
+					d.move(d.radarBlips[target->id], "Whatley " + to_string(target->id));
+					if (targetLevel == 0 && abs(d.y - TOP_MIDDLE) < 1000)
+						d.setBigLight();
+					else if (targetLevel == 1 && abs(d.y - MID_MIDDLE) < 1000)
+						d.setBigLight();
+					else if (targetLevel == 2 && abs(d.y - BOTTOM_MIDDLE) < 1000)
+						d.setBigLight();
+					else if (d.y > MID_LIMIT + 500 && d.battery > 15)
+						d.setBigLight();
+					else
+						d.setLowLight();
+				}
+			}
+			protectionMode(d);
 			i++;
 		}
 	}

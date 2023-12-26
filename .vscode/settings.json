@@ -4,6 +4,8 @@
 		"*.tcc": "cpp",
 		"ostream": "cpp",
 		"list": "cpp",
-		"vector": "cpp"
+		"vector": "cpp",
+		"__config": "cpp",
+		"__nullptr": "cpp"
 	}
 }

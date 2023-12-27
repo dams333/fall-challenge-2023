@@ -120,6 +120,7 @@ public:
 	bool savedByMe;
 	bool savedByOpp;
 	bool scannedByMe;
+	bool scannedByOpp;
 	bool dead;
 	CreatureSide side;
 
@@ -137,6 +138,7 @@ public:
 		this->savedByOpp = false;
 		this->scannedByMe = false;
 		this->dead = false;
+		this->scannedByOpp = false;
 		this->side = LEFT;
 	}
 
@@ -157,6 +159,7 @@ public:
 		scannedByMe = c.scannedByMe;
 		dead = c.dead;
 		side = c.side;
+		scannedByOpp = c.scannedByOpp;
 		return *this;
 	}
 
@@ -598,6 +601,10 @@ public:
 					myScans.push_back(&c);
 				}
 			}
+			else
+			{
+				c.scannedByOpp = true;
+			}
 			d.registerScan(c);
 		}
 		myScanCount = myScans.size();
@@ -858,12 +865,44 @@ public:
 		{
 			if (phase[i] == 0)
 			{
-				pair<int, int> target = make_pair(horizontalTarget[i], PHASE1_DEEP);
+				pair<int, int> target = make_pair(horizontalTarget[i], 9000);
 				d.move(target.first, target.second, "Glad0s " + to_string(i));
 				if (turn > 2 && turn % 2 != 0)
 					d.setBigLight();
 				else
 					d.setLowLight();
+				for (auto &c : creatures)
+				{
+					if (c.dead)
+						continue;
+					if (!c.scannedByMe)
+						continue;
+					if (c.type < 0)
+						continue;
+					if (c.scannedByOpp)
+						continue;
+					if (c.type == 0 && abs(d.y-TOP_MIDDLE) > 1000)
+						continue;
+					if (c.type == 1 && abs(d.y-MID_MIDDLE) > 1000)
+						continue;
+					if (c.type == 2 && abs(d.y-BOTTOM_MIDDLE) > 1000)
+						continue;
+					if ((d.radarBlips[c.id] == TOP_LEFT || d.radarBlips[c.id] == BOTTOM_LEFT) && horizontalTarget[i] == RIGHT_MIDDLE)
+						continue;
+					if ((d.radarBlips[c.id] == TOP_RIGHT || d.radarBlips[c.id] == BOTTOM_RIGHT) && horizontalTarget[i] == LEFT_MIDDLE)
+						continue;
+					if (c.visible)
+					{
+						if (c.x + c.dx <= 0 || c.x + c.dx >= 10000)
+							continue;
+						d.move(c.x + 500, c.y, "Aperture " + to_string(c.id));
+					}
+					else
+					{
+						d.move(d.radarBlips[c.id], "Aperture Science" + to_string(c.id));
+					}
+					break;
+				}
 				if (d.y > PHASE1_DEEP - 100)
 				{
 					d.setLowLight();

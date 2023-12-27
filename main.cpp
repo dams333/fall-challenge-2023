@@ -104,7 +104,7 @@ typedef enum
 {
 	LEFT,
 	RIGHT
-}	CreatureSide;
+} CreatureSide;
 
 class Creature
 {
@@ -296,16 +296,16 @@ public:
 		switch (dir)
 		{
 		case TOP_LEFT:
-			move(min(x - 300, 0), min(y - 300, 0), msg);
+			move(max(x - 300, 0), max(y - 300, 0), msg);
 			break;
 		case TOP_RIGHT:
-			move(max(x + 300, 10000), min(y - 300, 0), msg);
+			move(min(x + 300, 10000), max(y - 300, 0), msg);
 			break;
 		case BOTTOM_LEFT:
-			move(min(x - 300, 0), max(y + 350, 10000), msg);
+			move(max(x - 300, 0), min(y + 350, 10000), msg);
 			break;
 		case BOTTOM_RIGHT:
-			move(max(x + 300, 10000), max(y + 350, 10000), msg);
+			move(min(x + 300, 10000), min(y + 350, 10000), msg);
 			break;
 		}
 	}
@@ -318,7 +318,7 @@ public:
 		{
 			if (this->y > MID_LIMIT)
 			{
-				yModifier = - this->y - TOP_MIDDLE;
+				yModifier = -this->y - TOP_MIDDLE / 5;
 			}
 			else if (this->y < TOP_LIMIT)
 			{
@@ -329,7 +329,7 @@ public:
 		{
 			if (this->y > BOTTOM_LIMIT)
 			{
-				yModifier = - this->y - MID_MIDDLE;
+				yModifier = -this->y - MID_MIDDLE;
 			}
 			else if (this->y < MID_LIMIT)
 			{
@@ -347,16 +347,16 @@ public:
 		switch (dir)
 		{
 		case TOP_LEFT:
-			move(min(x - 300, 0), min(y - 300 + yModifier, 0), msg);
+			move(max(x - 300, 0), max(y - 300 + yModifier, 0), msg);
 			break;
 		case TOP_RIGHT:
-			move(max(x + 300, 10000), min(y - 300 + yModifier, 0), msg);
+			move(min(x + 300, 10000), max(y - 300 + yModifier, 0), msg);
 			break;
 		case BOTTOM_LEFT:
-			move(min(x - 300, 0), max(y + 350 + yModifier, 10000), msg);
+			move(max(x - 300, 0), min(y + 300 + yModifier, 10000), msg);
 			break;
 		case BOTTOM_RIGHT:
-			move(max(x + 300, 10000), max(y + 350 + yModifier, 10000), msg);
+			move(min(x + 300, 10000), min(y + 300 + yModifier, 10000), msg);
 			break;
 		}
 	}
@@ -748,16 +748,15 @@ public:
 			double angle = i * M_PI / 180;
 			pair<double, double> rotatedVector = make_pair(originalVector.first * cos(angle) - originalVector.second * sin(angle), originalVector.first * sin(angle) + originalVector.second * cos(angle));
 			pair<int, int> targetVector = make_pair(rotatedVector.first * 600, rotatedVector.second * 600);
-			vector<double> split = {0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 1};
 			bool danger = false;
-			for (double s : split)
+			for (double s = 0.02; s <= 1; s += 0.02)
 			{
 				pair<int, int> partialTarget = make_pair(d.x + targetVector.first * s, d.y + targetVector.second * s);
 				for (auto &m : monsters)
 				{
 					pair<int, int> partialMonster = make_pair(m->x + m->dx * s, m->y + m->dy * s);
 					int dist = sqrt((partialTarget.first - partialMonster.first) * (partialTarget.first - partialMonster.first) + (partialTarget.second - partialMonster.second) * (partialTarget.second - partialMonster.second));
-					if (dist < EMERGENCY_RADIUS + 10)
+					if (dist < EMERGENCY_RADIUS + 100)
 					{
 						danger = true;
 						break;
@@ -799,11 +798,11 @@ public:
 				continue;
 			if (c.y > d.y)
 				continue;
-			if (c.type == 0 && abs(d.y-TOP_MIDDLE) > 1000)
+			if (c.type == 0 && abs(d.y - TOP_MIDDLE) > 1000)
 				continue;
-			if (c.type == 1 && abs(d.y-MID_MIDDLE) > 1000)
+			if (c.type == 1 && abs(d.y - MID_MIDDLE) > 1000)
 				continue;
-			if (c.type == 2 && abs(d.y-BOTTOM_MIDDLE) > 1000)
+			if (c.type == 2 && abs(d.y - BOTTOM_MIDDLE) > 1000)
 				continue;
 			d.setBigLight();
 		}
@@ -819,7 +818,6 @@ public:
 				count++;
 		}
 		return count;
-	
 	}
 
 	void detectSides()
@@ -871,45 +869,58 @@ public:
 					d.setBigLight();
 				else
 					d.setLowLight();
-				for (auto &c : creatures)
+				bool danger = false;
+				for (auto &m : monsters)
 				{
-					if (c.dead)
+					if (!m->visible)
 						continue;
-					if (!c.scannedByMe)
+					if (d.distanceTo(m) > DANGER_RADIUS)
 						continue;
-					if (c.type < 0)
-						continue;
-					if (c.scannedByOpp)
-						continue;
-					if (c.type == 0 && abs(d.y-TOP_MIDDLE) > 1000)
-						continue;
-					if (c.type == 1 && abs(d.y-MID_MIDDLE) > 1000)
-						continue;
-					if (c.type == 2 && abs(d.y-BOTTOM_MIDDLE) > 1000)
-						continue;
-					if ((d.radarBlips[c.id] == TOP_LEFT || d.radarBlips[c.id] == BOTTOM_LEFT) && horizontalTarget[i] == RIGHT_MIDDLE)
-						continue;
-					if ((d.radarBlips[c.id] == TOP_RIGHT || d.radarBlips[c.id] == BOTTOM_RIGHT) && horizontalTarget[i] == LEFT_MIDDLE)
-						continue;
-					if (c.visible)
-					{
-						if (c.x + c.dx <= 0 || c.x + c.dx >= 10000)
-							continue;
-						d.move(c.x + 500, c.y, "Aperture " + to_string(c.id));
-					}
-					else
-					{
-						d.move(d.radarBlips[c.id], "Aperture Science" + to_string(c.id));
-					}
+					danger = true;
 					break;
 				}
-				if (d.y > PHASE1_DEEP - 100)
+				if (!danger)
 				{
-					d.setLowLight();
+					for (auto &c : creatures)
+					{
+						if (c.dead)
+							continue;
+						if (!c.scannedByMe)
+							continue;
+						if (c.type < 0)
+							continue;
+						if (c.scannedByOpp)
+							continue;
+						if (c.type == 0 && abs(d.y - TOP_MIDDLE) > 1000)
+							continue;
+						if (c.type == 1 && abs(d.y - MID_MIDDLE) > 1000)
+							continue;
+						if (c.type == 2 && abs(d.y - BOTTOM_MIDDLE) > 1000)
+							continue;
+						if ((d.radarBlips[c.id] == TOP_LEFT || d.radarBlips[c.id] == BOTTOM_LEFT) && horizontalTarget[i] == RIGHT_MIDDLE)
+							continue;
+						if ((d.radarBlips[c.id] == TOP_RIGHT || d.radarBlips[c.id] == BOTTOM_RIGHT) && horizontalTarget[i] == LEFT_MIDDLE)
+							continue;
+						if (c.visible)
+						{
+							if (c.x + c.dx <= 0 || c.x + c.dx >= 10000)
+								continue;
+							d.move(c.x + 1000, c.y, "Aperture " + to_string(c.id));
+						}
+						// else
+						// {
+						// 	d.move(d.radarBlips[c.id], "Aperture Science " + to_string(c.id));
+						// }
+						break;
+					}
+				}
+				if (d.y > PHASE1_DEEP)
+				{
+					d.setBigLight();
 					phase[i] = 1;
 				}
 			}
-			if (phase[i] == 1)
+			else if (phase[i] == 1)
 			{
 				cake(d);
 				if (d.y < SCAN_SAVE + 5)
@@ -945,7 +956,7 @@ public:
 				else
 				{
 					lastTarget = target;
-					d.move(d.radarBlips[target->id], "Whatley " + to_string(target->id));
+					d.move(d.radarBlips[target->id], target, "Whatley " + to_string(target->id));
 					if (targetLevel == 0 && abs(d.y - TOP_MIDDLE) < 1000)
 						d.setBigLight();
 					else if (targetLevel == 1 && abs(d.y - MID_MIDDLE) < 1000)

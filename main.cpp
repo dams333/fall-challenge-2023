@@ -9,8 +9,8 @@
 
 using namespace std;
 
-#define LEFT_MIDDLE 3000
-#define RIGHT_MIDDLE 7000
+#define LEFT_MIDDLE 2800
+#define RIGHT_MIDDLE 7200
 
 #define PHASE1_DEEP 7000
 
@@ -782,6 +782,24 @@ public:
 			d.setBigLight();
 		else
 			d.setLowLight();
+		for (auto &c : creatures)
+		{
+			if (c.dead)
+				continue;
+			if (c.scannedByMe)
+				continue;
+			if (c.type < 0)
+				continue;
+			if (c.y > d.y)
+				continue;
+			if (c.type == 0 && abs(d.y-TOP_MIDDLE) > 1000)
+				continue;
+			if (c.type == 1 && abs(d.y-MID_MIDDLE) > 1000)
+				continue;
+			if (c.type == 2 && abs(d.y-BOTTOM_MIDDLE) > 1000)
+				continue;
+			d.setBigLight();
+		}
 		d.move(d.x, SCAN_SAVE, "The cake is a lie");
 	}
 
@@ -834,6 +852,7 @@ public:
 			phase.push_back(0);
 		}
 
+		Creature *lastTarget = nullptr;
 		int i = 0;
 		for (Drone &d : myDrones)
 		{
@@ -841,12 +860,15 @@ public:
 			{
 				pair<int, int> target = make_pair(horizontalTarget[i], PHASE1_DEEP);
 				d.move(target.first, target.second, "Glad0s " + to_string(i));
-				if (d.y > TOP_LIMIT && (turn % 2 == 0 || turn > 10))
+				if (turn > 2 && turn % 2 != 0)
 					d.setBigLight();
 				else
 					d.setLowLight();
 				if (d.y > PHASE1_DEEP - 100)
+				{
+					d.setLowLight();
 					phase[i] = 1;
+				}
 			}
 			if (phase[i] == 1)
 			{
@@ -856,7 +878,7 @@ public:
 			}
 			if (phase[i] == 2)
 			{
-				int targetLevel = 2;
+				int targetLevel = 0;
 				Creature *target = nullptr;
 				while (target == nullptr)
 				{
@@ -870,21 +892,20 @@ public:
 							continue;
 						if (c.type != targetLevel)
 							continue;
-						if (c.side == LEFT && horizontalTarget[i] == RIGHT_MIDDLE)
-							continue;
-						if (c.side == RIGHT && horizontalTarget[i] == LEFT_MIDDLE)
+						if (lastTarget == &c)
 							continue;
 						target = &c;
 					}
 					if (target == nullptr)
-						targetLevel--;
-					if (targetLevel < 0)
+						targetLevel++;
+					if (targetLevel > 2)
 						break;
 				}
 				if (target == nullptr)
 					cake(d);
 				else
 				{
+					lastTarget = target;
 					d.move(d.radarBlips[target->id], "Whatley " + to_string(target->id));
 					if (targetLevel == 0 && abs(d.y - TOP_MIDDLE) < 1000)
 						d.setBigLight();
